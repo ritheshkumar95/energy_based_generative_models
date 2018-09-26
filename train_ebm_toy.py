@@ -22,7 +22,7 @@ def parse_args():
     parser.add_argument('--z_dim', type=int, default=2)
     parser.add_argument('--dim', type=int, default=512)
 
-    parser.add_argument('--energy_model_iters', type=int, default=1)
+    parser.add_argument('--energy_model_iters', type=int, default=5)
     parser.add_argument('--generator_iters', type=int, default=1)
     parser.add_argument('--mcmc_iters', type=int, default=0)
     parser.add_argument('--lamda', type=float, default=.1)
@@ -30,7 +30,7 @@ def parse_args():
 
     parser.add_argument('--batch_size', type=int, default=256)
     parser.add_argument('--iters', type=int, default=100000)
-    parser.add_argument('--n_points', type=int, default=10 ** 4)
+    parser.add_argument('--n_points', type=int, default=10 ** 3)
     parser.add_argument('--log_interval', type=int, default=100)
     parser.add_argument('--save_interval', type=int, default=1000)
 
@@ -40,10 +40,17 @@ def parse_args():
 
 args = parse_args()
 root = Path(args.save_path)
-if not root.exists():
-    os.makedirs(str(root))
-    os.system('mkdir -p models')
-    os.system('mkdir -p images')
+
+#################################################
+# Create Directories
+#################################################
+if root.exists():
+    os.system('rm -rf %s' % str(root))
+
+os.makedirs(str(root))
+os.system('mkdir -p %s' % str(root / 'models'))
+os.system('mkdir -p %s' % str(root / 'images'))
+#################################################
 
 itr = inf_train_gen(args.dataset, args.batch_size)
 netG = Generator(args.input_dim, args.z_dim, args.dim).cuda()
@@ -51,9 +58,9 @@ netE = EnergyModel(args.input_dim, args.dim).cuda()
 netH = StatisticsNetwork(args.input_dim, args.z_dim, args.dim).cuda()
 
 params = {'lr': 1e-4, 'betas': (0.5, 0.9)}
-optimizerE = torch.optim.Adam(netE.parameters(), *params)
-optimizerG = torch.optim.Adam(netG.parameters(), *params)
-optimizerH = torch.optim.Adam(netH.parameters(), *params)
+optimizerE = torch.optim.Adam(netE.parameters(), **params)
+optimizerG = torch.optim.Adam(netG.parameters(), **params)
+optimizerH = torch.optim.Adam(netH.parameters(), **params)
 
 #################################################
 # Dump Original Data

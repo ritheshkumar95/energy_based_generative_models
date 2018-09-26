@@ -10,10 +10,11 @@ def log_sum_exp(vec):
     return max_val + (vec - max_val).exp().sum().log()
 
 
-def save_samples_energies(netG, netE, args, n_points=500):
+def save_samples_energies(netG, netE, args, n_points=500, z=None):
     root = Path(args.save_path) / 'images'
 
-    z = torch.randn(args.n_points, args.z_dim).cuda()
+    if z is None:
+        z = torch.randn(args.n_points, args.z_dim).cuda()
     x_fake = netG(z).detach()
 
     log_Z = log_sum_exp(
@@ -48,8 +49,8 @@ def save_samples_energies(netG, netE, args, n_points=500):
 def sample_images(netG, args):
     netG.eval()
     z = torch.randn(64, args.z_dim).cuda()
-    x_fake = netG(z).detach().cpu()
+    x_fake = netG(z).detach().cpu()[:, :3]
 
     root = Path(args.save_path) / 'images'
-    save_image(x_fake, root + 'samples.png', normalize=True)
+    save_image(x_fake, root / 'samples.png', normalize=True)
     netG.train()

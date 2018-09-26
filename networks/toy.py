@@ -33,7 +33,7 @@ class EnergyModel(nn.Module):
         )
 
     def forward(self, z):
-        return self.main(z)
+        return self.main(z).squeeze(-1)
 
 
 class StatisticsNetwork(nn.Module):
@@ -51,4 +51,4 @@ class StatisticsNetwork(nn.Module):
 
     def forward(self, x, z):
         x = torch.cat([x, z], -1)
-        return self.main(x)
+        return self.main(x).squeeze(-1)

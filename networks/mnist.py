@@ -4,7 +4,7 @@ import torch.nn as nn
 
 class Generator(nn.Module):
     def __init__(self, input_dim, z_dim=128, dim=512):
-        super(Generator, self).__init__()
+        super().__init__()
         self.expand = nn.Linear(z_dim, 2 * 2 * dim)
         self.main = nn.Sequential(
             nn.BatchNorm2d(dim),
@@ -27,9 +27,9 @@ class Generator(nn.Module):
         return self.main(x)
 
 
-class Discriminator(nn.Module):
+class EnergyModel(nn.Module):
     def __init__(self, input_dim, dim=512):
-        super(Discriminator, self).__init__()
+        super().__init__()
         self.expand = nn.Linear(2 * 2 * dim, 1)
         self.main = nn.Sequential(
             nn.Conv2d(input_dim, dim // 8, 5, 2, 2),
@@ -44,12 +44,12 @@ class Discriminator(nn.Module):
 
     def forward(self, x):
         out = self.main(x).view(x.size(0), -1)
-        return self.expand(out)
+        return self.expand(out).squeeze(-1)
 
 
-class Classifier(nn.Module):
+class StatisticsNetwork(nn.Module):
     def __init__(self, input_dim=1, z_dim=128, dim=512):
-        super(Classifier, self).__init__()
+        super().__init__()
         self.main = nn.Sequential(
             nn.Conv2d(input_dim, dim // 8, 5, 2, 2),
             nn.LeakyReLU(0.2, inplace=True),
@@ -71,4 +71,4 @@ class Classifier(nn.Module):
         out = self.main(x).view(x.size(0), -1)
         out = self.expand(out)
         out = torch.cat([out, z], -1)
-        return self.classify(out)
+        return self.classify(out).squeeze(-1)

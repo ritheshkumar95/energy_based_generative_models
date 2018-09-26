@@ -1,7 +1,7 @@
 import torch
 
 
-def calc_gradient_penalty(netD, real_data, fake_data, lamda=.1):
+def gradient_penalty(netD, real_data, fake_data, lamda=.1):
     alpha = torch.rand_like(real_data)
     interpolates = alpha * real_data + (1 - alpha) * fake_data
     interpolates.requires_grad_(True)

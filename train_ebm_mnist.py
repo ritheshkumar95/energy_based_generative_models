@@ -7,16 +7,17 @@ import numpy as np
 import torch
 from torchvision.utils import save_image
 
-from evals import tf_inception_score
+from evals import ModeCollapseEval
 from utils import sample_images
-from data.celeba import inf_train_gen
-from networks.celeba import Generator, EnergyModel, StatisticsNetwork
+from data.mnist import inf_train_gen
+from networks.mnist import Generator, EnergyModel, StatisticsNetwork
 from train_functions import train_generator, train_energy_model
 
 
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--save_path', required=True)
+    parser.add_argument('--n_stack', type=int, required=True)
 
     parser.add_argument('--z_dim', type=int, default=128)
     parser.add_argument('--dim', type=int, default=512)
@@ -49,10 +50,11 @@ os.system('mkdir -p %s' % str(root / 'models'))
 os.system('mkdir -p %s' % str(root / 'images'))
 #################################################
 
-itr = inf_train_gen(args.batch_size)
-netG = Generator(args.z_dim, args.dim).cuda()
-netE = EnergyModel(args.dim).cuda()
-netH = StatisticsNetwork(args.z_dim, args.dim).cuda()
+mc_eval = ModeCollapseEval(args.n_stack, args.z_dim)
+itr = inf_train_gen(args.batch_size, n_stack=args.n_stack)
+netG = Generator(args.n_stack, args.z_dim, args.dim).cuda()
+netE = EnergyModel(args.n_stack, args.dim).cuda()
+netH = StatisticsNetwork(args.n_stack, args.z_dim, args.dim).cuda()
 
 params = {'lr': 1e-4, 'betas': (0.5, 0.9)}
 optimizerE = torch.optim.Adam(netE.parameters(), **params)
@@ -63,7 +65,7 @@ optimizerH = torch.optim.Adam(netH.parameters(), **params)
 # Dump Original Data
 ########################################################################
 orig_data = itr.__next__()
-save_image(orig_data, root / 'images/orig.png', normalize=True)
+save_image(orig_data[:, :3], root / 'images/orig.png', normalize=True)
 ########################################################################
 
 start_time = time.time()
@@ -102,6 +104,12 @@ for iters in range(args.iters):
         start_time = time.time()
 
     if iters % args.save_interval == 0:
+        netG.eval()
+        print("-" * 100)
+        mc_eval.count_modes(netG)
+        print("-" * 100)
+        netG.train()
+
         torch.save(
             netG.state_dict(),
             root / 'models/netG.pt'
