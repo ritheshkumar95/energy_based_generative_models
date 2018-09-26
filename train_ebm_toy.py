@@ -57,7 +57,8 @@ netG = Generator(args.input_dim, args.z_dim, args.dim).cuda()
 netE = EnergyModel(args.input_dim, args.dim).cuda()
 netH = StatisticsNetwork(args.input_dim, args.z_dim, args.dim).cuda()
 
-params = {'lr': 1e-4, 'betas': (0.5, 0.9)}
+# params = {'lr': 1e-4, 'betas': (0.5, 0.9)}
+params = {'lr': 1e-4}
 optimizerE = torch.optim.Adam(netE.parameters(), **params)
 optimizerG = torch.optim.Adam(netG.parameters(), **params)
 optimizerH = torch.optim.Adam(netH.parameters(), **params)

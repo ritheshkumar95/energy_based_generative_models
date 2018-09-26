@@ -38,12 +38,10 @@ root = Path(args.save_path)
 #################################################
 # Create Directories
 #################################################
-if root.exists():
-    os.system('rm -rf %s' % str(root))
-
-os.makedirs(str(root))
-os.system('mkdir -p %s' % str(root / 'models'))
-os.system('mkdir -p %s' % str(root / 'images'))
+if not root.exists():
+    os.makedirs(str(root))
+    os.system('mkdir -p %s' % str(root / 'models'))
+    os.system('mkdir -p %s' % str(root / 'images'))
 #################################################
 
 itr = inf_train_gen(args.batch_size)
@@ -53,6 +51,13 @@ netD = EnergyModel(args.dim).cuda()
 params = {'lr': 1e-4, 'betas': (0.5, 0.9)}
 optimizerD = torch.optim.Adam(netD.parameters(), **params)
 optimizerG = torch.optim.Adam(netG.parameters(), **params)
+
+if (root / 'models/netD.pt').exists():
+    print("Loading existing Discriminator...")
+    netD.load_state_dict(torch.load(root / 'models/netD.pt'))
+if (root / 'models/netG.pt').exists():
+    print("Loading existing Generator...")
+    netG.load_state_dict(torch.load(root / 'models/netG.pt'))
 
 ########################################################################
 # Dump Original Data
