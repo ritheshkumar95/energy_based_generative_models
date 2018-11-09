@@ -2,6 +2,15 @@ import torch
 import torch.nn as nn
 
 
+def weights_init(m):
+    classname = m.__class__.__name__
+    if classname.find('Conv') != -1:
+        m.weight.data.normal_(0.0, 0.02)
+    elif classname.find('BatchNorm') != -1:
+        m.weight.data.normal_(1.0, 0.02)
+        m.bias.data.fill_(0)
+
+
 class Generator(nn.Module):
     def __init__(self, input_dim, z_dim=128, dim=512):
         super().__init__()
@@ -21,6 +30,7 @@ class Generator(nn.Module):
             nn.ConvTranspose2d(dim // 8, input_dim, 5, 2, 2, output_padding=1),
             nn.Tanh()
         )
+        self.apply(weights_init)
 
     def forward(self, z):
         x = self.expand(z).view(z.size(0), -1, 2, 2)

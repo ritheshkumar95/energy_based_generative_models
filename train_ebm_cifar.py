@@ -102,7 +102,7 @@ for iters in range(args.iters):
         start_time = time.time()
 
     if iters % args.save_interval == 0:
-        mean, std = tf_inception_score(netG)
+        mean, std = tf_inception_score(netG, z_dim=args.z_dim)
         print("-" * 100)
         print("Inception Score: mean = {} std = {}".format(
             mean, std

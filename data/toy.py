@@ -20,6 +20,25 @@ def inf_train_gen(dataset, batch_size):
             for i in range(len(dataset) // batch_size):
                 yield dataset[i * batch_size:(i+1) * batch_size]
 
+    elif dataset == '32gaussians':
+        thetas = np.arange(8) * (np.pi / 4)
+        radii = [2, 3, 4, 5]
+        dataset = []
+        for i in range(1600):
+            point = np.random.normal(0, .1, 2)
+            radius = np.random.choice(radii)
+            theta = np.random.choice(thetas) + (radius % 2) * (np.pi / 8)
+            x = radius * np.cos(theta)
+            y = radius * np.sin(theta)
+            point[0] += x
+            point[1] += y
+            dataset.append(point)
+
+        dataset = np.array(dataset, dtype='float32')
+        while True:
+            for i in range(len(dataset) // batch_size):
+                yield dataset[i * batch_size:(i+1) * batch_size]
+
     elif dataset == '20gaussians':
         dataset = []
         drop_modes = [(-1, -1), (-1, 1), (1, -1), (1, 1), (0, 0)]

@@ -1,7 +1,34 @@
+import numpy as np
 import torch
 import torch.nn as nn
 from networks.regularizers import score_penalty, gradient_penalty
 from sampler import MALA_sampler
+
+
+def train_poor_generator(netG, netE, optimizerG, args, g_costs):
+    netG.zero_grad()
+
+    z = torch.randn(args.batch_size, args.z_dim).cuda()
+    x_fake = netG(z)
+    D_fake = netE(x_fake)
+    D_fake = D_fake.mean()
+    # D_fake.backward(retain_graph=True)
+
+    ################################
+    # DeepInfoMAX for MI estimation
+    ################################
+    entropy_approx = 0.
+    for layer in netG.main:
+        if 'BatchNorm' in layer.__class__.__name__:
+            entropy_approx += torch.log(layer.weight.abs()).sum()
+    entropy_approx = entropy_approx * args.entropy_coeff
+    (D_fake - entropy_approx).backward()
+
+    optimizerG.step()
+
+    g_costs.append(
+        [D_fake.item(), entropy_approx.item()]
+    )
 
 
 def train_generator(netG, netE, netH, optimizerG, optimizerH, args, g_costs):
@@ -51,8 +78,10 @@ def train_energy_model(x_real, netG, netE, optimizerE, args, e_costs):
     D_fake = D_fake.mean()
     (-D_fake).backward()
 
-    penalty = score_penalty(netE, x_real, args.lamda)
-    penalty.backward()
+    penalty = torch.tensor([0.])
+    if args.score_coeff:
+        penalty = score_penalty(netE, x_real, args.lamda)
+        penalty.backward()
 
     optimizerE.step()
 

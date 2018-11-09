@@ -24,10 +24,37 @@ def save_samples_energies(netG, netE, args, n_points=500, z=None):
     plt.clf()
     x_fake = x_fake.cpu().numpy()
     plt.scatter(x_fake[:, 0], x_fake[:, 1])
+
+    if args.dataset == '32gaussians':
+        radii = [2, 3, 4, 5]
+        thetas = np.arange(16) * (np.pi / 8)
+
+        for r in radii:
+            circles = []
+            for i in range(101):
+                t = (2. * np.pi / 100) * i
+                point = np.zeros(2)
+                point[0] += r * np.cos(t)
+                point[1] += r * np.sin(t)
+                circles.append(point)
+            plt.plot(*zip(*circles),  c='gray')
+
+        for t in thetas:
+            lines = []
+            for r in np.linspace(-6, 6, 100):
+                point = np.zeros(2)
+                point[0] += r * np.cos(t)
+                point[1] += r * np.sin(t)
+                lines.append(point)
+            plt.plot(*zip(*lines),  c='gray')
     plt.savefig(root / 'samples.png')
 
-    x = np.linspace(-2, 2, n_points)
-    y = np.linspace(-2, 2, n_points)
+    if args.dataset == '32gaussians':
+        x = np.linspace(-6, 6, n_points)
+        y = np.linspace(-6, 6, n_points)
+    else:
+        x = np.linspace(-2, 2, n_points)
+        y = np.linspace(-2, 2, n_points)
     grid = np.asarray(np.meshgrid(x, y)).transpose(1, 2, 0).reshape((-1, 2))
     grid = torch.from_numpy(grid).float().cuda()
 

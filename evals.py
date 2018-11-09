@@ -43,12 +43,12 @@ class ModeCollapseEval(object):
         print('Reverse KL: ', KLD(counts, true_data))
 
 
-def tf_inception_score(netG, n_samples=5000):
+def tf_inception_score(netG, z_dim=128, n_samples=5000):
     netG.eval()
     from inception_score import get_inception_score
     all_samples = []
     for i in tqdm(range(n_samples // 100)):
-        samples_100 = torch.randn(100, 128).cuda()
+        samples_100 = torch.randn(100, z_dim).cuda()
         all_samples.append(
             netG(samples_100).detach().cpu().numpy()
         )

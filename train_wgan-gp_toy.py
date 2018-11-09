@@ -9,8 +9,8 @@ import torch
 
 from utils import save_samples_energies
 from data.toy import inf_train_gen
-from networks.toy import Generator, EnergyModel, StatisticsNetwork
-from train_functions import train_generator, train_energy_model
+from networks.toy import Generator, EnergyModel
+from train_functions import train_wgan_generator, train_wgan_discriminator
 
 
 def parse_args():
@@ -22,12 +22,8 @@ def parse_args():
     parser.add_argument('--z_dim', type=int, default=2)
     parser.add_argument('--dim', type=int, default=512)
 
-    parser.add_argument('--energy_model_iters', type=int, default=5)
-    parser.add_argument('--generator_iters', type=int, default=1)
-    parser.add_argument('--mcmc_iters', type=int, default=0)
+    parser.add_argument('--critic_iters', type=int, default=5)
     parser.add_argument('--lamda', type=float, default=.1)
-    parser.add_argument('--alpha', type=float, default=.01)
-    parser.add_argument('--score_coeff', type=float, default=1.)
 
     parser.add_argument('--batch_size', type=int, default=256)
     parser.add_argument('--iters', type=int, default=100000)
@@ -55,13 +51,11 @@ os.system('mkdir -p %s' % str(root / 'images'))
 
 itr = inf_train_gen(args.dataset, args.batch_size)
 netG = Generator(args.input_dim, args.z_dim, args.dim).cuda()
-netE = EnergyModel(args.input_dim, args.dim).cuda()
-netH = StatisticsNetwork(args.input_dim, args.z_dim, args.dim).cuda()
+netD = EnergyModel(args.input_dim, args.dim).cuda()
 
 params = {'lr': 1e-4, 'betas': (0.5, 0.9)}
-optimizerE = torch.optim.Adam(netE.parameters(), **params)
+optimizerD = torch.optim.Adam(netD.parameters(), **params)
 optimizerG = torch.optim.Adam(netG.parameters(), **params)
-optimizerH = torch.optim.Adam(netH.parameters(), **params)
 
 #################################################
 # Dump Original Data
@@ -73,38 +67,28 @@ plt.savefig(root / 'images/orig.png')
 ##################################################
 
 start_time = time.time()
-e_costs = []
-g_costs = []
+d_costs = []
 for iters in range(args.iters):
+    train_wgan_generator(netG, netD, optimizerG, args)
 
-    for i in range(args.generator_iters):
-        train_generator(
-            netG, netE, netH,
-            optimizerG, optimizerH,
-            args, g_costs
-        )
-
-    for i in range(args.energy_model_iters):
+    for i in range(args.critic_iters):
         x_real = torch.from_numpy(itr.__next__()).cuda()
-        train_energy_model(
-            x_real,
-            netG, netE, optimizerE,
-            args, e_costs
+        train_wgan_discriminator(
+            x_real, netG, netD, optimizerD,
+            args, d_costs
         )
 
     if iters % args.log_interval == 0:
         print('Train Iter: {}/{} ({:.0f}%)\t'
-              'D_costs: {} G_costs: {} Time: {:5.3f}'.format(
+              'D_costs: {} Time: {:5.3f}'.format(
                   iters, args.iters,
                   (args.log_interval * iters) / args.iters,
-                  np.asarray(e_costs).mean(0),
-                  np.asarray(g_costs).mean(0),
+                  np.asarray(d_costs).mean(0),
                   (time.time() - start_time) / args.log_interval
               ))
-        save_samples_energies(netG, netE, args)
+        save_samples_energies(netG, netD, args)
 
-        e_costs = []
-        g_costs = []
+        d_costs = []
         start_time = time.time()
 
     if iters % args.save_interval == 0:
@@ -113,10 +97,6 @@ for iters in range(args.iters):
             root / 'models/netG.pt'
         )
         torch.save(
-            netE.state_dict(),
-            root / 'models/netE.pt'
-        )
-        torch.save(
-            netH.state_dict(),
+            netD.state_dict(),
             root / 'models/netD.pt'
         )
