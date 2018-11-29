@@ -8,20 +8,20 @@ from tqdm import tqdm
 
 import torch
 
+from sampler import MALA_sampler
 from utils import save_samples_energies
-from data.toy import inf_train_gen
-from networks.toy import Generator, EnergyModel, StatisticsNetwork
-from train_functions import train_generator, train_energy_model
+from networks.toy import Generator, EnergyModel
 
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset', required=True)
     parser.add_argument('--load_path', required=True)
 
     parser.add_argument('--input_dim', type=int, default=2)
     parser.add_argument('--z_dim', type=int, default=2)
     parser.add_argument('--dim', type=int, default=512)
+    parser.add_argument('--mcmc_iters', type=int, default=0)
+    parser.add_argument('--alpha', type=int, default=.01)
 
     parser.add_argument('--batch_size', type=int, default=100)
     parser.add_argument('--iters', type=int, default=100)
@@ -32,7 +32,6 @@ def parse_args():
 args = parse_args()
 root = Path(args.load_path)
 
-itr = inf_train_gen(args.dataset, args.batch_size)
 netG = Generator(args.input_dim, args.z_dim, args.dim).cuda()
 netE = EnergyModel(args.input_dim, args.dim).cuda()
 
@@ -44,9 +43,9 @@ if root.exists():
     netG.load_state_dict(
         torch.load(root / 'models/netG.pt')
     )
-    # netE.load_state_dict(
-    #     torch.load(root / 'models/netE.pt')
-    # )
+    netE.load_state_dict(
+        torch.load(root / 'models/netE.pt')
+    )
 #################################################
 
 thetas = np.arange(8) * (np.pi / 4)
@@ -64,7 +63,7 @@ modes = np.asarray(modes, dtype='float32')
 n_modes = []
 ratio = []
 for i in tqdm(range(args.iters)):
-    z = torch.randn(args.batch_size, args.z_dim).cuda()
+    z, _ = MALA_sampler(netG, netE, args)
     x = netG(z).detach().cpu().numpy()
 
     dists = (x[:, :, None] - modes.T[None]) ** 2

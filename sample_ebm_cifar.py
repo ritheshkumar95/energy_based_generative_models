@@ -7,9 +7,10 @@ import torch
 from torchvision.utils import save_image
 
 from sampler import MALA_sampler
-from inception_score import get_inception_score
+# from inception_score import get_inception_score
 from data.cifar import inf_train_gen
 from networks.cifar import Generator, EnergyModel
+from imageio import imread, mimwrite
 
 
 def parse_args():
@@ -21,8 +22,9 @@ def parse_args():
 
     parser.add_argument('--mcmc_iters', type=int, default=0)
     parser.add_argument('--alpha', type=float, default=.01)
+    parser.add_argument('--temp', type=float, default=1.)
 
-    parser.add_argument('--batch_size', type=int, default=100)
+    parser.add_argument('--batch_size', type=int, default=64)
     parser.add_argument('--n_samples', type=int, default=5000)
     args = parser.parse_args()
     return args
@@ -46,20 +48,31 @@ netE.load_state_dict(torch.load(
 ))
 
 
-for mcmc_iters in range(1, 11):
-    for alpha in [0.000025, 0.00005, 0.0001, 0.00025, 0.0005, 0.001, 0.0025, 0.005]:
-        args.mcmc_iters = mcmc_iters
-        args.alpha = alpha
-        images = []
-        for i in tqdm(range(args.n_samples // args.batch_size)):
-            z = MALA_sampler(netG, netE, args)
-            x = netG(z).detach().cpu().numpy()
-            images.append(x)
+# for mcmc_iters in range(1, 11):
+#     for alpha in [0.000025, 0.00005, 0.0001, 0.00025, 0.0005, 0.001, 0.0025, 0.005]:
+#         args.mcmc_iters = mcmc_iters
+#         args.alpha = alpha
+#         images = []
+#         for i in tqdm(range(args.n_samples // args.batch_size)):
+#             z = MALA_sampler(netG, netE, args)
+#             x = netG(z).detach().cpu().numpy()
+#             images.append(x)
 
-        images = np.concatenate(images, 0)
-        mean, std = get_inception_score(images)
-        print("-" * 100)
-        print("Inception Score: alpha = {} mcmc_iters = {} mean = {} std = {}".format(
-            alpha, mcmc_iters, mean, std
-        ))
-        print("-" * 100)
+#         images = np.concatenate(images, 0)
+#         mean, std = get_inception_score(images)
+#         print("-" * 100)
+#         print("Inception Score: alpha = {} mcmc_iters = {} mean = {} std = {}".format(
+#             alpha, mcmc_iters, mean, std
+#         ))
+#         print("-" * 100)
+
+list_z = MALA_sampler(netG, netE, args)
+images = []
+
+for i, z in tqdm(enumerate(list_z)):
+    x_fake = netG(z).detach()
+    save_image(x_fake, root / 'samples.png', normalize=True)
+    images.append(imread(root / 'samples.png'))
+
+print('Creating GIF....')
+mimwrite('mcmc.gif', images)

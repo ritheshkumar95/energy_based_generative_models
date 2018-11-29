@@ -3,6 +3,8 @@ import argparse
 import numpy as np
 from tqdm import tqdm
 import os
+import matplotlib.pyplot as plt
+from imageio import imread, mimwrite
 
 import torch
 
@@ -23,6 +25,7 @@ def parse_args():
     parser.add_argument('--batch_size', type=int, default=1000)
     parser.add_argument('--mcmc_iters', type=int, default=10)
     parser.add_argument('--alpha', type=float, default=.01)
+    parser.add_argument('--temp', type=float, default=10)
     args = parser.parse_args()
     return args
 
@@ -43,9 +46,38 @@ netE.load_state_dict(torch.load(
     root / 'models/netE.pt'
 ))
 
-
 args.save_path = Path('mcmc')
 os.system('mkdir -p %s' % (args.save_path / 'images'))
+
+
+root = Path(args.save_path) / 'images'
 images = []
-z = MALA_sampler(netG, netE, args)
-save_samples_energies(netG, netE, args, z=z)
+list_z = MALA_sampler(netG, netE, args)
+list_img = []
+
+x_vals = np.arange(-2, 3)
+y_vals = np.arange(-2, 3)
+modes = np.asarray(np.meshgrid(x_vals, y_vals))
+modes = modes.reshape((2, 25)).T * (2 / 2.828)
+
+for i, z in tqdm(enumerate(list_z)):
+    x_fake = netG(z).detach()
+
+    plt.clf()
+    x_fake = x_fake.cpu().numpy()
+    plt.scatter(x_fake[:, 0], x_fake[:, 1], s=20, alpha=.5)
+
+    if args.dataset == '25gaussians':
+        for x in range(-2, 3):
+            for y in range(-2, 3):
+                plt.scatter(modes[:, 0], modes[:, 1], c='red', alpha=.5, s=10)
+
+    plt.title("Iter %d" % i)
+    plt.xlim(-2, 2)
+    plt.ylim(-2, 2)
+    plt.savefig(root / 'samples.png')
+
+    images.append(imread(root / 'samples.png'))
+
+print('Creating GIF....')
+mimwrite('mcmc.gif', images)

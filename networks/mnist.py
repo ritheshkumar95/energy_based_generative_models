@@ -1,4 +1,4 @@
-import torch
+import torch as T
 import torch.nn as nn
 
 
@@ -51,10 +51,15 @@ class EnergyModel(nn.Module):
             nn.Conv2d(dim // 2, dim, 5, 2, 2),
             nn.LeakyReLU(0.2, inplace=True),
         )
+        self.b = nn.Linear(input_dim * 28 * 28, 1, bias=False)
 
     def forward(self, x):
         out = self.main(x).view(x.size(0), -1)
-        return self.expand(out).squeeze(-1)
+        en = self.expand(out).squeeze(-1)
+
+        var = T.sum(x * x, 1).sum(1).sum(1)
+        mean = self.b(x.view(x.size(0), -1)).squeeze()
+        return var - mean + en
 
 
 class StatisticsNetwork(nn.Module):
@@ -80,5 +85,5 @@ class StatisticsNetwork(nn.Module):
     def forward(self, x, z):
         out = self.main(x).view(x.size(0), -1)
         out = self.expand(out)
-        out = torch.cat([out, z], -1)
+        out = T.cat([out, z], -1)
         return self.classify(out).squeeze(-1)

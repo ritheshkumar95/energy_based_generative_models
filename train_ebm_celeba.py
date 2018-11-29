@@ -25,7 +25,11 @@ def parse_args():
     parser.add_argument('--generator_iters', type=int, default=1)
     parser.add_argument('--mcmc_iters', type=int, default=0)
     parser.add_argument('--lamda', type=float, default=10)
+
     parser.add_argument('--alpha', type=float, default=.01)
+    parser.add_argument('--score_coeff', type=float, default=1.)
+    parser.add_argument('--entropy_coeff', type=float, default=1.)
+    parser.add_argument('--clip_gradient', type=float, default=0.)
 
     parser.add_argument('--batch_size', type=int, default=64)
     parser.add_argument('--iters', type=int, default=100000)

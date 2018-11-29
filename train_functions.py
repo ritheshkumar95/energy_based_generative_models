@@ -1,45 +1,28 @@
 import numpy as np
 import torch
+import torch as T
 import torch.nn as nn
+import torch.nn.functional as F
 from networks.regularizers import score_penalty, gradient_penalty
 from sampler import MALA_sampler
 
 
-def train_poor_generator(netG, netE, optimizerG, args, g_costs):
-    netG.zero_grad()
-
-    z = torch.randn(args.batch_size, args.z_dim).cuda()
-    x_fake = netG(z)
-    D_fake = netE(x_fake)
-    D_fake = D_fake.mean()
-    # D_fake.backward(retain_graph=True)
-
-    ################################
-    # DeepInfoMAX for MI estimation
-    ################################
-    entropy_approx = 0.
-    for layer in netG.main:
-        if 'BatchNorm' in layer.__class__.__name__:
-            entropy_approx += torch.log(layer.weight.abs()).sum()
-    entropy_approx = entropy_approx * args.entropy_coeff
-    (D_fake - entropy_approx).backward()
-
-    optimizerG.step()
-
-    g_costs.append(
-        [D_fake.item(), entropy_approx.item()]
-    )
-
-
-def train_generator(netG, netE, netH, optimizerG, optimizerH, args, g_costs):
+def train_generator(
+    x_real, netEnc, netG, netE, netH,
+    optEnc, optG, optH, args, g_costs
+):
     netG.zero_grad()
     netH.zero_grad()
+    netEnc.zero_grad()
+
+    z = netEnc(x_real)
+    x_fake = netG(z)
+    rec_loss = nn.MSELoss()(x_fake, x_real)
 
     z = torch.randn(args.batch_size, args.z_dim).cuda()
     x_fake = netG(z)
     D_fake = netE(x_fake)
     D_fake = D_fake.mean()
-    D_fake.backward(retain_graph=True)
 
     ################################
     # DeepInfoMAX for MI estimation
@@ -50,47 +33,72 @@ def train_generator(netG, netE, netH, optimizerG, optimizerH, args, g_costs):
     z_bar = z[torch.randperm(args.batch_size)]
     concat_x = torch.cat([x_fake, x_fake], 0)
     concat_z = torch.cat([z, z_bar], 0)
-    mi_estimate = nn.BCEWithLogitsLoss()(
+    mi_estimate = args.entropy_coeff * nn.BCEWithLogitsLoss()(
         netH(concat_x, concat_z).squeeze(),
         label
     )
-    mi_estimate.backward()
 
-    optimizerG.step()
-    optimizerH.step()
+    (D_fake + rec_loss + mi_estimate).backward()
+
+    if args.clip_gradient:
+        T.nn.utils.clip_grad_norm_(netG.parameters(), args.clip_gradient)
+        T.nn.utils.clip_grad_norm_(netH.parameters(), args.clip_gradient)
+        T.nn.utils.clip_grad_norm_(netEnc.parameters(), args.clip_gradient)
+
+    optG.step()
+    optH.step()
+    optEnc.step()
 
     g_costs.append(
-        [D_fake.item(), mi_estimate.item()]
+        [mi_estimate.item(), rec_loss.item()]
     )
 
 
-def train_energy_model(x_real, netG, netE, optimizerE, args, e_costs):
+def train_energy_model(x_real, netEnc, netG, netE, optE, args, e_costs):
     netE.zero_grad()
+    x_real.requires_grad_(True)
+    energy = netE(x_real)
+    D_real = energy.mean()
 
-    D_real = netE(x_real)
-    D_real = D_real.mean()
-    D_real.backward()
+    score = torch.autograd.grad(
+        outputs=energy, inputs=x_real,
+        grad_outputs=torch.ones_like(energy),
+        create_graph=True, retain_graph=True, only_inputs=True
+    )[0]
 
     # train with fake
-    z = MALA_sampler(netG, netE, args)
+    z, ratio = MALA_sampler(netG, netE, args)
     x_fake = netG(z).detach()
     D_fake = netE(x_fake)
     D_fake = D_fake.mean()
-    (-D_fake).backward()
 
-    penalty = torch.tensor([0.])
+    penalty = torch.tensor([0.]).cuda()
     if args.score_coeff:
-        penalty = score_penalty(netE, x_real, args.lamda)
-        penalty.backward()
+        penalty = (score.norm(2, dim=1) ** 2).mean() * args.lamda
+        penalty = args.score_coeff * penalty
 
-    optimizerE.step()
+    score_match = nn.MSELoss()(
+        score,
+        netG(netEnc(x_real)) - x_real
+    )
+    # score_match = -F.cosine_similarity(
+    #     score,
+    #     netG(netEnc(x_real)) - x_real,
+    #     dim=1
+    # ).mean()
+
+    (D_real - D_fake + score_match + penalty).backward()
+
+    if args.clip_gradient:
+        T.nn.utils.clip_grad_norm_(netE.parameters(), args.clip_gradient)
+    optE.step()
 
     e_costs.append(
-        [D_real.item(), D_fake.item(), penalty.item()]
+        [D_real.item(), D_fake.item(), score_match.item()]
     )
 
 
-def train_wgan_generator(netG, netD, optimizerG, args):
+def train_wgan_generator(netG, netD, optG, args):
     netG.zero_grad()
 
     z = torch.randn(args.batch_size, args.z_dim).cuda()
@@ -99,10 +107,10 @@ def train_wgan_generator(netG, netD, optimizerG, args):
     D_fake = D_fake.mean()
     (-D_fake).backward()
 
-    optimizerG.step()
+    optG.step()
 
 
-def train_wgan_discriminator(x_real, netG, netD, optimizerD, args, d_costs):
+def train_wgan_discriminator(x_real, netG, netD, optD, args, d_costs):
     netD.zero_grad()
 
     D_real = netD(x_real)
@@ -120,7 +128,7 @@ def train_wgan_discriminator(x_real, netG, netD, optimizerD, args, d_costs):
     penalty.backward()
 
     Wasserstein_D = D_real - D_fake
-    optimizerD.step()
+    optD.step()
 
     d_costs.append(
         [D_real.item(), D_fake.item(), Wasserstein_D.item(), penalty.item()]
