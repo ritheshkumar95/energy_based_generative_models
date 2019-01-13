@@ -8,7 +8,7 @@ from tensorboardX import SummaryWriter
 
 import torch
 
-from utils import save_samples, save_energies, learn_temperature, KDEstimator
+from utils import save_samples, save_energies
 from data.toy import DataLoader
 from networks.toy import Generator, EnergyModel, StatisticsNetwork
 from train_functions import train_generator, train_energy_model
@@ -56,7 +56,6 @@ writer = SummaryWriter(str(root))
 #################################################
 
 loader = DataLoader(args.dataset, args.n_train, args.n_test)
-estimator = KDEstimator(loader.train)
 itr = loader.inf_train_gen(args.batch_size)
 
 netG = Generator(args.input_dim, args.z_dim, args.dim).cuda()
@@ -107,18 +106,16 @@ for iters in range(args.iters):
     writer.add_scalar('loss_mi', loss_mi, iters)
 
     if iters % args.log_interval == 0:
-        beta, beta_std = estimator.forward(netE)
         print('Train Iter: {}/{} ({:.0f}%)\t'
-              'beta: {} beta_std: {} D_costs: {} G_costs: {} Time: {:5.3f}'.format(
+              'D_costs: {} G_costs: {} Time: {:5.3f}'.format(
                   iters, args.iters,
                   (args.log_interval * iters) / args.iters,
-                  beta, beta_std,
                   np.asarray(e_costs).mean(0),
                   np.asarray(g_costs).mean(0),
                   (time.time() - start_time) / args.log_interval
               ))
         fig_samples = save_samples(netG, args)
-        e_fig, p_fig = save_energies(netE, args, beta=beta)
+        e_fig, p_fig = save_energies(netE, args)
         test_acc = loader.compute_accuracy(netG, netE, args, split='test')
         train_acc = loader.compute_accuracy(netG, netE, args, split='train')
 
