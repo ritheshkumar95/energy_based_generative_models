@@ -1,83 +1,100 @@
+import random
 import torch
+import torch.nn as nn
+import torch.nn.functional as F
 import numpy as np
 import matplotlib.pyplot as plt
-from pathlib import Path
-from torchvision.utils import save_image
+from sklearn.neighbors import KernelDensity
 
 
-def log_sum_exp(vec):
-    max_val = vec.max()[0]
-    return max_val + (vec - max_val).exp().sum().log()
+class KDEstimator(object):
+    def __init__(self, x_real):
+        self.x_real = x_real
+        self.kde = KernelDensity(bandwidth=.5)
+        self.kde.fit(x_real)
+        self.log_p = self.kde.score_samples(x_real)
+
+    def forward(self, netE, n_points=100):
+        x = torch.from_numpy(self.x_real).cuda()
+        e_x = -netE(x).detach().cpu().numpy()
+
+        betas = []
+        for i in range(x.size(0)):
+            dists = (x[i:i+1] - x).norm(2, dim=1)
+            j = random.choice(
+                (-dists).topk(5)[1][1:]
+            ).item()
+            lhs = self.log_p[i] - self.log_p[j]
+            rhs = e_x[i] - e_x[j]
+            if np.sign(lhs / rhs) == 1:
+                betas.append(lhs / rhs)
+
+        return np.mean(betas), np.std(betas)
 
 
-def save_samples_energies(netG, netE, args, n_points=500, z=None):
-    root = Path(args.save_path) / 'images'
+def learn_temperature(x_real, netE):
+    beta = nn.Parameter(torch.ones(1).cuda())
+    optimizer = torch.optim.LBFGS([beta], lr=0.8)
 
+    def closure():
+        optimizer.zero_grad()
+        x = torch.from_numpy(x_real).cuda()
+        median = x[:, 0].median()
+        patch1 = x[x[:, 0] <= median]
+        patch2 = x[x[:, 0] > median]
+
+        vol_A = len(patch1) / (4 * (median + 2))
+        vol_B = len(patch2) / (4 * (2 - median))
+
+        lhs = torch.log(vol_A) - torch.log(vol_B)
+        e_patch1 = -netE(patch1) * beta.abs()
+        e_patch2 = -netE(patch2) * beta.abs()
+
+        rhs = torch.logsumexp(e_patch1, 0) - torch.logsumexp(e_patch2, 0)
+        loss = (lhs - rhs) ** 2
+
+        loss.backward()
+        return loss
+
+    for i in range(5):
+        optimizer.step(closure)
+
+    return beta.item()
+
+
+def save_samples(netG, args, z=None):
     if z is None:
         z = torch.randn(args.n_points, args.z_dim).cuda()
-    x_fake = netG(z).detach()
+    x_fake = netG(z).detach().cpu().numpy()
 
-    log_Z = log_sum_exp(
-        -netE(x_fake).squeeze()
-    ).item()
+    fig = plt.Figure()
+    ax = fig.add_subplot(111)
+    ax.scatter(x_fake[:, 0], x_fake[:, 1])
+    return fig
 
-    plt.clf()
-    x_fake = x_fake.cpu().numpy()
-    plt.scatter(x_fake[:, 0], x_fake[:, 1])
 
-    if args.dataset == '32gaussians':
-        radii = [2, 3, 4, 5]
-        thetas = np.arange(16) * (np.pi / 8)
-
-        for r in radii:
-            circles = []
-            for i in range(101):
-                t = (2. * np.pi / 100) * i
-                point = np.zeros(2)
-                point[0] += r * np.cos(t)
-                point[1] += r * np.sin(t)
-                circles.append(point)
-            plt.plot(*zip(*circles),  c='gray')
-
-        for t in thetas:
-            lines = []
-            for r in np.linspace(-6, 6, 100):
-                point = np.zeros(2)
-                point[0] += r * np.cos(t)
-                point[1] += r * np.sin(t)
-                lines.append(point)
-            plt.plot(*zip(*lines),  c='gray')
-    plt.savefig(root / 'samples.png')
-
-    if args.dataset == '32gaussians':
-        x = np.linspace(-6, 6, n_points)
-        y = np.linspace(-6, 6, n_points)
-    else:
-        x = np.linspace(-2, 2, n_points)
-        y = np.linspace(-2, 2, n_points)
+def save_energies(netE, args, n_points=500, beta=1.):
+    x = np.linspace(-2, 2, n_points)
+    y = np.linspace(-2, 2, n_points)
     grid = np.asarray(np.meshgrid(x, y)).transpose(1, 2, 0).reshape((-1, 2))
-    grid = torch.from_numpy(grid).float().cuda()
 
-    energies = netE(grid).detach().cpu().numpy()
-    e_grid = energies.reshape((n_points, n_points))
-    p_grid = np.exp(- e_grid - log_Z)
+    with torch.no_grad():
+        grid = torch.from_numpy(grid).float().cuda()
+        e_grid = netE(grid) * beta
+
+    p_grid = F.log_softmax(-e_grid, 0).exp()
+    e_grid = e_grid.cpu().numpy().reshape((n_points, n_points))
+    p_grid = p_grid.cpu().numpy().reshape((n_points, n_points))
+
+    fig1 = plt.Figure()
+    ax1 = fig1.add_subplot(111)
+    im = ax1.imshow(e_grid, origin='lower')
+    fig1.colorbar(im)
 
     plt.clf()
-    plt.imshow(e_grid, origin='lower')
-    plt.colorbar()
-    plt.savefig(root / 'energies.png')
+    fig2 = plt.Figure()
+    ax2 = fig2.add_subplot(111)
+    im = ax2.imshow(p_grid, origin='lower')
+    fig2.colorbar(im)
 
-    plt.clf()
-    plt.imshow(p_grid, origin='lower')
-    plt.colorbar()
-    plt.savefig(root / 'densities.png')
-
-
-def sample_images(netG, args):
-    netG.eval()
-    z = torch.randn(64, args.z_dim).cuda()
-    x_fake = netG(z).detach().cpu()[:, :3]
-
-    root = Path(args.save_path) / 'images'
-    save_image(x_fake, root / 'samples.png', normalize=True)
-    netG.train()
+    return fig1, fig2

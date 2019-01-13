@@ -4,11 +4,12 @@ import argparse
 import os
 import time
 import numpy as np
+from tensorboardX import SummaryWriter
 
 import torch
 
-from utils import save_samples_energies
-from data.toy import inf_train_gen
+from utils import save_samples, save_energies, learn_temperature, KDEstimator
+from data.toy import DataLoader
 from networks.toy import Generator, EnergyModel, StatisticsNetwork
 from train_functions import train_generator, train_energy_model
 
@@ -16,6 +17,8 @@ from train_functions import train_generator, train_energy_model
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset', required=True)
+    parser.add_argument('--n_train', type=int, default=8000)
+    parser.add_argument('--n_test', type=int, default=2000)
     parser.add_argument('--save_path', required=True)
 
     parser.add_argument('--input_dim', type=int, default=2)
@@ -27,7 +30,6 @@ def parse_args():
     parser.add_argument('--mcmc_iters', type=int, default=0)
     parser.add_argument('--lamda', type=float, default=.1)
     parser.add_argument('--alpha', type=float, default=.01)
-    parser.add_argument('--score_coeff', type=float, default=1.)
 
     parser.add_argument('--batch_size', type=int, default=256)
     parser.add_argument('--iters', type=int, default=100000)
@@ -41,7 +43,6 @@ def parse_args():
 
 args = parse_args()
 root = Path(args.save_path)
-
 #################################################
 # Create Directories
 #################################################
@@ -51,9 +52,13 @@ if root.exists():
 os.makedirs(str(root))
 os.system('mkdir -p %s' % str(root / 'models'))
 os.system('mkdir -p %s' % str(root / 'images'))
+writer = SummaryWriter(str(root))
 #################################################
 
-itr = inf_train_gen(args.dataset, args.batch_size)
+loader = DataLoader(args.dataset, args.n_train, args.n_test)
+estimator = KDEstimator(loader.train)
+itr = loader.inf_train_gen(args.batch_size)
+
 netG = Generator(args.input_dim, args.z_dim, args.dim).cuda()
 netE = EnergyModel(args.input_dim, args.dim).cuda()
 netH = StatisticsNetwork(args.input_dim, args.z_dim, args.dim).cuda()
@@ -66,10 +71,11 @@ optimizerH = torch.optim.Adam(netH.parameters(), **params)
 #################################################
 # Dump Original Data
 #################################################
-orig_data = itr.__next__()
-plt.clf()
-plt.scatter(orig_data[:, 0], orig_data[:, 1])
-plt.savefig(root / 'images/orig.png')
+orig_data = loader.test[:args.n_points]
+fig = plt.Figure()
+ax = fig.add_subplot(111)
+ax.scatter(orig_data[:, 0], orig_data[:, 1])
+writer.add_figure('originals', fig, 0)
 ##################################################
 
 start_time = time.time()
@@ -92,16 +98,35 @@ for iters in range(args.iters):
             args, e_costs
         )
 
+    _, loss_mi = np.mean(g_costs[-args.generator_iters:], 0)
+    d_real, d_fake, penalty = np.mean(e_costs[-args.energy_model_iters:], 0)
+
+    writer.add_scalar('loss_fake', d_fake, iters)
+    writer.add_scalar('loss_real', d_real, iters)
+    writer.add_scalar('loss_penalty', penalty, iters)
+    writer.add_scalar('loss_mi', loss_mi, iters)
+
     if iters % args.log_interval == 0:
+        beta, beta_std = estimator.forward(netE)
         print('Train Iter: {}/{} ({:.0f}%)\t'
-              'D_costs: {} G_costs: {} Time: {:5.3f}'.format(
+              'beta: {} beta_std: {} D_costs: {} G_costs: {} Time: {:5.3f}'.format(
                   iters, args.iters,
                   (args.log_interval * iters) / args.iters,
+                  beta, beta_std,
                   np.asarray(e_costs).mean(0),
                   np.asarray(g_costs).mean(0),
                   (time.time() - start_time) / args.log_interval
               ))
-        save_samples_energies(netG, netE, args)
+        fig_samples = save_samples(netG, args)
+        e_fig, p_fig = save_energies(netE, args, beta=beta)
+        test_acc = loader.compute_accuracy(netG, netE, args, split='test')
+        train_acc = loader.compute_accuracy(netG, netE, args, split='train')
+
+        writer.add_figure('samples', fig_samples, iters)
+        writer.add_figure('energy', e_fig, iters)
+        writer.add_figure('density', p_fig, iters)
+        writer.add_scalar('train_acc', train_acc, iters)
+        writer.add_scalar('test_acc', test_acc, iters)
 
         e_costs = []
         g_costs = []

@@ -1,7 +1,7 @@
 import torch
 
 
-def gradient_penalty(netD, real_data, fake_data, lamda=.1):
+def gradient_penalty(netD, real_data, fake_data):
     alpha = torch.rand_like(real_data)
     interpolates = alpha * real_data + (1 - alpha) * fake_data
     interpolates.requires_grad_(True)
@@ -11,11 +11,11 @@ def gradient_penalty(netD, real_data, fake_data, lamda=.1):
         grad_outputs=torch.ones_like(disc_interpolates),
         create_graph=True, retain_graph=True, only_inputs=True
     )[0]
-    gradient_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean() * lamda
+    gradient_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean()
     return gradient_penalty
 
 
-def score_penalty(netE, data, lamda, beta=1.):
+def score_penalty(netE, data, beta=1.):
     data.requires_grad_(True)
     energy = netE(data) * beta
     score = torch.autograd.grad(
@@ -23,4 +23,4 @@ def score_penalty(netE, data, lamda, beta=1.):
         grad_outputs=torch.ones_like(energy),
         create_graph=True, retain_graph=True, only_inputs=True
     )[0]
-    return (score.norm(2, dim=1) ** 2).mean() * lamda
+    return (score.norm(2, dim=1) ** 2).mean()
