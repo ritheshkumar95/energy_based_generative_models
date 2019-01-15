@@ -31,24 +31,30 @@ class EnergyModel(nn.Module):
             nn.LeakyReLU(.2),
             nn.Linear(dim, 1)
         )
+        self.norm = nn.BatchNorm1d(1)
 
     def forward(self, x):
-        return self.main(x).squeeze(-1)
+        out = self.main(x)
+        e_x = self.norm(out)
+        return e_x.squeeze(-1), out.squeeze(-1)
 
 
 class StatisticsNetwork(nn.Module):
     def __init__(self, input_dim, z_dim, dim):
         super().__init__()
         self.main = nn.Sequential(
-            nn.Linear(input_dim + z_dim, dim),
+            nn.Linear(input_dim, dim),
             nn.LeakyReLU(.2),
             nn.Linear(dim, dim),
             nn.LeakyReLU(.2),
             nn.Linear(dim, dim),
             nn.LeakyReLU(.2),
-            nn.Linear(dim, 1)
+            nn.Linear(dim, z_dim)
         )
 
-    def forward(self, x, z):
-        x = torch.cat([x, z], -1)
-        return self.main(x).squeeze(-1)
+    # def forward(self, x, z):
+    #     x = torch.cat([x, z], -1)
+    #     return self.main(x).squeeze(-1)
+
+    def forward(self, x):
+        return self.main(x)

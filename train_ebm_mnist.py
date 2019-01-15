@@ -22,11 +22,12 @@ def parse_args():
     parser.add_argument('--z_dim', type=int, default=128)
     parser.add_argument('--dim', type=int, default=512)
 
-    parser.add_argument('--energy_model_iters', type=int, default=5)
+    parser.add_argument('--energy_model_iters', type=int, default=1)
     parser.add_argument('--generator_iters', type=int, default=1)
     parser.add_argument('--mcmc_iters', type=int, default=0)
     parser.add_argument('--lamda', type=float, default=10)
     parser.add_argument('--alpha', type=float, default=.01)
+    parser.add_argument('--mi_coeff', type=float, default=1)
 
     parser.add_argument('--batch_size', type=int, default=64)
     parser.add_argument('--iters', type=int, default=100000)
@@ -71,9 +72,11 @@ save_image(orig_data[:, :3], root / 'images/orig.png', normalize=True)
 start_time = time.time()
 e_costs = []
 g_costs = []
+trackers = []
 for iters in range(args.iters):
 
     for i in range(args.generator_iters):
+        netE.eval()
         train_generator(
             netG, netE, netH,
             optimizerG, optimizerH,
@@ -81,11 +84,12 @@ for iters in range(args.iters):
         )
 
     for i in range(args.energy_model_iters):
+        netE.train()
         x_real = itr.__next__().cuda()
         train_energy_model(
             x_real,
             netG, netE, optimizerE,
-            args, e_costs
+            args, e_costs, trackers
         )
 
     if iters % args.log_interval == 0:

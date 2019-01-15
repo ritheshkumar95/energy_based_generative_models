@@ -41,20 +41,27 @@ class EnergyModel(nn.Module):
     def __init__(self, input_dim, dim=512):
         super().__init__()
         self.expand = nn.Linear(2 * 2 * dim, 1)
+        self.norm = nn.BatchNorm1d(1)
         self.main = nn.Sequential(
             nn.Conv2d(input_dim, dim // 8, 5, 2, 2),
+            # nn.BatchNorm2d(dim // 8),
             nn.LeakyReLU(0.2, inplace=True),
             nn.Conv2d(dim // 8, dim // 4, 5, 2, 2),
+            # nn.BatchNorm2d(dim // 4),
             nn.LeakyReLU(0.2, inplace=True),
             nn.Conv2d(dim // 4, dim // 2, 5, 2, 2),
+            # nn.BatchNorm2d(dim // 2),
             nn.LeakyReLU(0.2, inplace=True),
             nn.Conv2d(dim // 2, dim, 5, 2, 2),
+            # nn.BatchNorm2d(dim),
             nn.LeakyReLU(0.2, inplace=True),
         )
 
     def forward(self, x):
         out = self.main(x).view(x.size(0), -1)
-        return self.expand(out).squeeze(-1)
+        out = self.expand(out)
+        e_x = self.norm(out)
+        return e_x.squeeze(-1), out.squeeze(-1)
 
 
 class StatisticsNetwork(nn.Module):
@@ -68,7 +75,7 @@ class StatisticsNetwork(nn.Module):
             nn.Conv2d(dim // 4, dim // 2, 5, 2, 2),
             nn.LeakyReLU(0.2, inplace=True),
             nn.Conv2d(dim // 2, dim, 5, 2, 2),
-            nn.LeakyReLU(0.2, inplace=True),
+            nn.LeakyReLU(0.2, inplace=True)
         )
         self.expand = nn.Linear(2 * 2 * dim, z_dim)
         self.classify = nn.Sequential(
@@ -77,8 +84,10 @@ class StatisticsNetwork(nn.Module):
             nn.Linear(dim, 1)
         )
 
+    # def forward(self, x):
     def forward(self, x, z):
         out = self.main(x).view(x.size(0), -1)
         out = self.expand(out)
         out = torch.cat([out, z], -1)
         return self.classify(out).squeeze(-1)
+        # return out
