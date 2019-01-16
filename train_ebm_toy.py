@@ -8,7 +8,7 @@ from tensorboardX import SummaryWriter
 
 import torch
 
-from utils import save_samples, save_energies
+from utils import save_toy_samples, save_energies
 from data.toy import DataLoader
 from networks.toy import Generator, EnergyModel, StatisticsNetwork
 from train_functions import train_generator, train_energy_model
@@ -114,7 +114,7 @@ for iters in range(args.iters):
                   np.asarray(g_costs).mean(0),
                   (time.time() - start_time) / args.log_interval
               ))
-        fig_samples = save_samples(netG, args)
+        fig_samples = save_toy_samples(netG, args)
         e_fig, p_fig = save_energies(netE, args)
         test_acc = loader.compute_accuracy(netG, netE, args, split='test')
         train_acc = loader.compute_accuracy(netG, netE, args, split='train')

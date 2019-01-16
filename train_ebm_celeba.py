@@ -5,7 +5,8 @@ import time
 import numpy as np
 
 import torch
-from torchvision.utils import save_image
+from torchvision.utils import save_image, make_grid
+from tensorboardX import SummaryWriter
 
 from evals import tf_inception_score
 from utils import sample_images
@@ -47,6 +48,7 @@ if root.exists():
 os.makedirs(str(root))
 os.system('mkdir -p %s' % str(root / 'models'))
 os.system('mkdir -p %s' % str(root / 'images'))
+writer = SummaryWriter(str(root))
 #################################################
 
 itr = inf_train_gen(args.batch_size)
@@ -62,8 +64,12 @@ optimizerH = torch.optim.Adam(netH.parameters(), **params)
 ########################################################################
 # Dump Original Data
 ########################################################################
-orig_data = itr.__next__()
-save_image(orig_data, root / 'images/orig.png', normalize=True)
+for i in range(8):
+    orig_data = itr.__next__()
+    # save_image(orig_data, root / 'images/orig.png', normalize=True)
+    img = make_grid(orig_data, normalize=True)
+    writer.add_image('samples/original', img, i)
+
 ########################################################################
 
 start_time = time.time()
@@ -85,6 +91,14 @@ for iters in range(args.iters):
             netG, netE, optimizerE,
             args, e_costs
         )
+
+    _, loss_mi = np.mean(g_costs[-args.generator_iters:], 0)
+    d_real, d_fake, penalty = np.mean(e_costs[-args.energy_model_iters:], 0)
+
+    writer.add_scalar('energy/fake', d_fake, iters)
+    writer.add_scalar('energy/real', d_real, iters)
+    writer.add_scalar('loss/penalty', penalty, iters)
+    writer.add_scalar('loss/mi', loss_mi, iters)
 
     if iters % args.log_interval == 0:
         print('Train Iter: {}/{} ({:.0f}%)\t'

@@ -5,13 +5,14 @@ import time
 import numpy as np
 
 import torch
-from torchvision.utils import save_image
+from torchvision.utils import save_image, make_grid
 
 from evals import tf_inception_score
 from utils import sample_images
 from data.cifar import inf_train_gen
 from networks.cifar import Generator, EnergyModel, StatisticsNetwork
 from train_functions import train_generator, train_energy_model
+from tensorboardX import SummaryWriter
 
 
 def parse_args():
@@ -47,6 +48,7 @@ if root.exists():
 os.makedirs(str(root))
 os.system('mkdir -p %s' % str(root / 'models'))
 os.system('mkdir -p %s' % str(root / 'images'))
+writer = SummaryWriter(str(root))
 #################################################
 
 itr = inf_train_gen(args.batch_size)
@@ -62,8 +64,11 @@ optimizerH = torch.optim.Adam(netH.parameters(), **params)
 ########################################################################
 # Dump Original Data
 ########################################################################
-orig_data = itr.__next__()
-save_image(orig_data, root / 'images/orig.png', normalize=True)
+for i in range(8):
+    orig_data = itr.__next__()
+    # save_image(orig_data, root / 'images/orig.png', normalize=True)
+    img = make_grid(orig_data, normalize=True)
+    writer.add_image('samples/original', img, i)
 ########################################################################
 
 start_time = time.time()
@@ -86,6 +91,14 @@ for iters in range(args.iters):
             args, e_costs
         )
 
+    _, loss_mi = np.mean(g_costs[-args.generator_iters:], 0)
+    d_real, d_fake, penalty = np.mean(e_costs[-args.energy_model_iters:], 0)
+
+    writer.add_scalar('energy/fake', d_fake, iters)
+    writer.add_scalar('energy/real', d_real, iters)
+    writer.add_scalar('loss/penalty', penalty, iters)
+    writer.add_scalar('loss/mi', loss_mi, iters)
+
     if iters % args.log_interval == 0:
         print('Train Iter: {}/{} ({:.0f}%)\t'
               'D_costs: {} G_costs: {} Time: {:5.3f}'.format(
@@ -95,7 +108,8 @@ for iters in range(args.iters):
                   np.asarray(g_costs).mean(0),
                   (time.time() - start_time) / args.log_interval
               ))
-        sample_images(netG, args)
+        img = sample_images(netG, args)
+        writer.add_image('samples/generated', img, iters)
 
         e_costs = []
         g_costs = []
@@ -108,6 +122,9 @@ for iters in range(args.iters):
             mean, std
         ))
         print("-" * 100)
+
+        writer.add_scalar('inception_score/mean', mean)
+        writer.add_scalar('inception_score/std', std)
 
         torch.save(
             netG.state_dict(),

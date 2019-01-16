@@ -2,9 +2,11 @@ import torch
 import torch.nn.functional as F
 import numpy as np
 import matplotlib.pyplot as plt
+from torchvision.utils import save_image, make_grid
+from pathlib import Path
 
 
-def save_samples(netG, args, z=None):
+def save_toy_samples(netG, args, z=None):
     if z is None:
         z = torch.randn(args.n_points, args.z_dim).cuda()
     x_fake = netG(z).detach().cpu().numpy()
@@ -13,6 +15,18 @@ def save_samples(netG, args, z=None):
     ax = fig.add_subplot(111)
     ax.scatter(x_fake[:, 0], x_fake[:, 1])
     return fig
+
+
+def sample_images(netG, args):
+    netG.eval()
+    z = torch.randn(64, args.z_dim).cuda()
+    x_fake = netG(z).detach().cpu()[:, :3]
+
+    img = make_grid(x_fake, normalize=True)
+    # root = Path(args.save_path) / 'images'
+    # save_image(x_fake, root / 'samples.png', normalize=True)
+    netG.train()
+    return img
 
 
 def save_energies(netE, args, n_points=500, beta=1.):
