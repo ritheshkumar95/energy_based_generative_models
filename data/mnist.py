@@ -3,7 +3,7 @@ import os
 import numpy as np
 
 
-def inf_train_gen(batch_size, data_dir='../raw_data/raw', n_stack=3):
+def inf_train_gen(batch_size, data_dir='../data/MNIST/raw', n_stack=3):
     fd = open(os.path.join(data_dir, 'train-images-idx3-ubyte'))
     loaded = np.fromfile(file=fd, dtype=np.uint8)
     mnist_X = loaded[16:].reshape((60000, 28, 28, 1)).astype(np.float)

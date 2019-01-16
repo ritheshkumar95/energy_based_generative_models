@@ -4,13 +4,16 @@ from networks.regularizers import score_penalty, gradient_penalty
 from sampler import MALA_sampler
 
 
-def train_generator(netG, netE, netH, optimizerG, optimizerH, args, g_costs):
+def train_generator(x_real, netG, netE, netH, optimizerG, optimizerH, args, g_costs):
     netG.zero_grad()
     netH.zero_grad()
 
     z = torch.randn(args.batch_size, args.z_dim).cuda()
     x_fake = netG(z)
-    D_fake, f_fake = netE(x_fake)
+    x = torch.cat([x_real, x_fake], dim=0)
+    D_tot, f_tot = netE(x)
+    D_real, D_fake = D_tot.chunk(2, dim=0)
+    f_real, f_fake = f_tot.chunk(2, dim=0)
     D_fake = D_fake.mean()
     D_fake.backward(retain_graph=True)
 

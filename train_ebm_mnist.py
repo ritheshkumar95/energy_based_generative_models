@@ -76,15 +76,17 @@ trackers = []
 for iters in range(args.iters):
 
     for i in range(args.generator_iters):
-        netE.eval()
+        netE.norm.eval()
+        x_real = itr.__next__().cuda()
         train_generator(
+            x_real,
             netG, netE, netH,
             optimizerG, optimizerH,
             args, g_costs
         )
 
     for i in range(args.energy_model_iters):
-        netE.train()
+        netE.norm.train()
         x_real = itr.__next__().cuda()
         train_energy_model(
             x_real,

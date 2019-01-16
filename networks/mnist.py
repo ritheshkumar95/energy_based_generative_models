@@ -16,16 +16,16 @@ class Generator(nn.Module):
         super().__init__()
         self.expand = nn.Linear(z_dim, 2 * 2 * dim)
         self.main = nn.Sequential(
-            nn.BatchNorm2d(dim),
+            # nn.BatchNorm2d(dim),
             nn.ReLU(True),
             nn.ConvTranspose2d(dim, dim // 2, 5, 2, 2, output_padding=1),
-            nn.BatchNorm2d(dim // 2),
+            # nn.BatchNorm2d(dim // 2),
             nn.ReLU(True),
             nn.ConvTranspose2d(dim // 2, dim // 4, 5, 2, 2),
-            nn.BatchNorm2d(dim // 4),
+            # nn.BatchNorm2d(dim // 4),
             nn.ReLU(True),
             nn.ConvTranspose2d(dim // 4, dim // 8, 5, 2, 2, output_padding=1),
-            nn.BatchNorm2d(dim // 8),
+            # nn.BatchNorm2d(dim // 8),
             nn.ReLU(True),
             nn.ConvTranspose2d(dim // 8, input_dim, 5, 2, 2, output_padding=1),
             nn.Tanh()
@@ -69,17 +69,22 @@ class StatisticsNetwork(nn.Module):
         super().__init__()
         self.main = nn.Sequential(
             nn.Conv2d(input_dim, dim // 8, 5, 2, 2),
+            # nn.BatchNorm2d(dim // 8),
             nn.LeakyReLU(0.2, inplace=True),
             nn.Conv2d(dim // 8, dim // 4, 5, 2, 2),
+            # nn.BatchNorm2d(dim // 4),
             nn.LeakyReLU(0.2, inplace=True),
             nn.Conv2d(dim // 4, dim // 2, 5, 2, 2),
+            # nn.BatchNorm2d(dim // 2),
             nn.LeakyReLU(0.2, inplace=True),
             nn.Conv2d(dim // 2, dim, 5, 2, 2),
+            # nn.BatchNorm2d(dim),
             nn.LeakyReLU(0.2, inplace=True)
         )
         self.expand = nn.Linear(2 * 2 * dim, z_dim)
         self.classify = nn.Sequential(
             nn.Linear(z_dim * 2, dim),
+            # nn.BatchNorm1d(dim),
             nn.LeakyReLU(0.2, inplace=True),
             nn.Linear(dim, 1)
         )
