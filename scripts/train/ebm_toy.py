@@ -9,7 +9,7 @@ from tensorboardX import SummaryWriter
 import torch
 
 from utils import save_toy_samples, save_energies
-from ..data.toy import DataLoader
+from ..data.toy import inf_train_gen
 from ..networks.toy import Generator, EnergyModel, StatisticsNetwork
 from train_functions import train_generator, train_energy_model
 
@@ -17,8 +17,6 @@ from train_functions import train_generator, train_energy_model
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset', required=True)
-    parser.add_argument('--n_train', type=int, default=8000)
-    parser.add_argument('--n_test', type=int, default=2000)
     parser.add_argument('--save_path', required=True)
 
     parser.add_argument('--input_dim', type=int, default=2)
@@ -54,9 +52,7 @@ os.system('mkdir -p %s' % str(root / 'models'))
 os.system('mkdir -p %s' % str(root / 'images'))
 writer = SummaryWriter(str(root))
 #################################################
-
-loader = DataLoader(args.dataset, args.n_train, args.n_test)
-itr = loader.inf_train_gen(args.batch_size)
+itr = inf_train_gen(args.dataset, args.batch_size)
 
 netG = Generator(args.input_dim, args.z_dim, args.dim).cuda()
 netE = EnergyModel(args.input_dim, args.dim).cuda()
@@ -70,7 +66,7 @@ optimizerH = torch.optim.Adam(netH.parameters(), **params)
 #################################################
 # Dump Original Data
 #################################################
-orig_data = loader.test[:args.n_points]
+orig_data = inf_train_gen(args.dataset, args.n_points).__next__()
 fig = plt.Figure()
 ax = fig.add_subplot(111)
 ax.scatter(orig_data[:, 0], orig_data[:, 1])
@@ -117,14 +113,10 @@ for iters in range(args.iters):
               ))
         fig_samples = save_toy_samples(netG, args)
         e_fig, p_fig = save_energies(netE, args)
-        test_acc = loader.compute_accuracy(netG, netE, args, split='test')
-        train_acc = loader.compute_accuracy(netG, netE, args, split='train')
 
         writer.add_figure('samples', fig_samples, iters)
         writer.add_figure('energy', e_fig, iters)
         writer.add_figure('density', p_fig, iters)
-        writer.add_scalar('train_acc', train_acc, iters)
-        writer.add_scalar('test_acc', test_acc, iters)
 
         e_costs = []
         g_costs = []
