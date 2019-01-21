@@ -87,7 +87,7 @@ for iters in range(args.iters):
 
     writer.add_scalar('discriminator/fake', d_fake, iters)
     writer.add_scalar('discriminator/real', d_real, iters)
-    writer.add_scalar('gradient_penalty', penalty, iters)
+    writer.add_scalar('discriminator/gradient_penalty', penalty, iters)
     writer.add_scalar('wasserstein_distance', wass_d, iters)
 
     if iters % args.log_interval == 0:
@@ -121,5 +121,5 @@ for iters in range(args.iters):
         )
         torch.save(
             netD.state_dict(),
-            root / 'models/netD.pt'
+            root / 'models/netE.pt'
         )

@@ -98,10 +98,11 @@ for iters in range(args.iters):
         )
 
     _, loss_mi = np.mean(g_costs[-args.generator_iters:], 0)
-    d_real, d_fake, penalty = np.mean(e_costs[-args.energy_model_iters:], 0)
+    d_real, d_fake, nll, penalty = np.mean(e_costs[-args.energy_model_iters:], 0)
 
     writer.add_scalar('loss_fake', d_fake, iters)
     writer.add_scalar('loss_real', d_real, iters)
+    writer.add_scalar('loss/nll', nll, iters)
     writer.add_scalar('loss_penalty', penalty, iters)
     writer.add_scalar('loss_mi', loss_mi, iters)
 

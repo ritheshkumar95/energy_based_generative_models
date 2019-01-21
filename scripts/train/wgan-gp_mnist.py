@@ -5,7 +5,8 @@ import time
 import numpy as np
 
 import torch
-from torchvision.utils import save_image
+from torchvision.utils import save_image, make_grid
+from tensorboardX import SummaryWriter
 
 from evals import ModeCollapseEval
 from utils import sample_images
@@ -45,6 +46,7 @@ if root.exists():
 os.makedirs(str(root))
 os.system('mkdir -p %s' % str(root / 'models'))
 os.system('mkdir -p %s' % str(root / 'images'))
+writer = SummaryWriter(str(root))
 #################################################
 
 mc_eval = ModeCollapseEval(args.n_stack, args.z_dim)
@@ -59,8 +61,11 @@ optimizerG = torch.optim.Adam(netG.parameters(), **params)
 ########################################################################
 # Dump Original Data
 ########################################################################
-orig_data = itr.__next__()
-save_image(orig_data[:, :3], root / 'images/orig.png', normalize=True)
+for i in range(8):
+    orig_data = itr.__next__()
+    # save_image(orig_data, root / 'images/orig.png', normalize=True)
+    img = make_grid(orig_data, normalize=True)
+    writer.add_image('samples/original', img, i)
 ########################################################################
 
 start_time = time.time()
@@ -75,6 +80,13 @@ for iters in range(args.iters):
             args, d_costs
         )
 
+    d_real, d_fake, wass_d, penalty = np.mean(d_costs[-args.critic_iters:], 0)
+
+    writer.add_scalar('discriminator/fake', d_fake, iters)
+    writer.add_scalar('discriminator/real', d_real, iters)
+    writer.add_scalar('discriminator/gradient_penalty', penalty, iters)
+    writer.add_scalar('wasserstein_distance', wass_d, iters)
+
     if iters % args.log_interval == 0:
         print('Train Iter: {}/{} ({:.0f}%)\t'
               'D_costs: {} Time: {:5.3f}'.format(
@@ -83,18 +95,21 @@ for iters in range(args.iters):
                   np.asarray(d_costs).mean(0),
                   (time.time() - start_time) / args.log_interval
               ))
-        sample_images(netG, args)
+        img = sample_images(netG, args)
+        writer.add_image('samples/generated', img, iters)
 
-        e_costs = []
-        g_costs = []
+        d_costs = []
         start_time = time.time()
 
     if iters % args.save_interval == 0:
         netG.eval()
         print("-" * 100)
-        mc_eval.count_modes(netG)
+        n_modes, kld = mc_eval.count_modes(netG)
         print("-" * 100)
         netG.train()
+
+        writer.add_scalar('metrics/mode_count', n_modes, iters)
+        writer.add_scalar('metrics/kl_divergence', kld, iters)
 
         torch.save(
             netG.state_dict(),
@@ -102,5 +117,5 @@ for iters in range(args.iters):
         )
         torch.save(
             netD.state_dict(),
-            root / 'models/netD.pt'
+            root / 'models/netE.pt'
         )
