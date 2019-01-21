@@ -3,16 +3,16 @@ import torch.nn as nn
 
 
 class Generator(nn.Module):
-    def __init__(self, output_dim, z_dim, dim):
+    def __init__(self, z_dim, dim):
         super().__init__()
         self.main = nn.Sequential(
             nn.Linear(z_dim, dim),
-            nn.ReLU(),
+            nn.ReLU(True),
             nn.Linear(dim, dim),
-            nn.ReLU(),
+            nn.ReLU(True),
             nn.Linear(dim, dim),
-            nn.ReLU(),
-            nn.Linear(dim, output_dim)
+            nn.ReLU(True),
+            nn.Linear(dim, 2)
         )
 
     def forward(self, z):
@@ -20,15 +20,15 @@ class Generator(nn.Module):
 
 
 class EnergyModel(nn.Module):
-    def __init__(self, input_dim, dim):
+    def __init__(self, dim):
         super().__init__()
         self.main = nn.Sequential(
-            nn.Linear(input_dim, dim),
-            nn.LeakyReLU(.2),
+            nn.Linear(2, dim),
+            nn.LeakyReLU(.2, inplace=True),
             nn.Linear(dim, dim),
-            nn.LeakyReLU(.2),
+            nn.LeakyReLU(.2, inplace=True),
             nn.Linear(dim, dim),
-            nn.LeakyReLU(.2),
+            nn.LeakyReLU(.2, inplace=True),
             nn.Linear(dim, 1)
         )
 
@@ -37,15 +37,15 @@ class EnergyModel(nn.Module):
 
 
 class StatisticsNetwork(nn.Module):
-    def __init__(self, input_dim, z_dim, dim):
+    def __init__(self, z_dim, dim):
         super().__init__()
         self.main = nn.Sequential(
-            nn.Linear(input_dim + z_dim, dim),
-            nn.LeakyReLU(.2),
+            nn.Linear(2 + z_dim, dim),
+            nn.LeakyReLU(.2, inplace=True),
             nn.Linear(dim, dim),
-            nn.LeakyReLU(.2),
+            nn.LeakyReLU(.2, inplace=True),
             nn.Linear(dim, dim),
-            nn.LeakyReLU(.2),
+            nn.LeakyReLU(.2, inplace=True),
             nn.Linear(dim, 1)
         )
 

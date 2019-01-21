@@ -12,7 +12,7 @@ def weights_init(m):
 
 
 class Generator(nn.Module):
-    def __init__(self, input_dim, z_dim=128, dim=512):
+    def __init__(self, input_dim=1, z_dim=128, dim=512):
         super().__init__()
         self.expand = nn.Linear(z_dim, 2 * 2 * dim)
         self.main = nn.Sequential(
@@ -38,7 +38,7 @@ class Generator(nn.Module):
 
 
 class EnergyModel(nn.Module):
-    def __init__(self, input_dim, dim=512):
+    def __init__(self, input_dim=1, dim=512):
         super().__init__()
         self.expand = nn.Linear(2 * 2 * dim, 1)
         self.main = nn.Sequential(

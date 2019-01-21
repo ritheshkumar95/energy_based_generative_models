@@ -2,7 +2,7 @@ import torch
 import torch.nn.functional as F
 import numpy as np
 from tqdm import tqdm
-from StackedMNIST.train_classifier import Net
+from train.classifier_mnist import Net
 from scipy.misc import imsave
 import os
 from pathlib import Path
@@ -17,7 +17,7 @@ def KLD(p, q):
 class ModeCollapseEval(object):
     def __init__(self, n_stack, z_dim):
         self.classifier = Net().cuda()
-        self.classifier.load_state_dict(torch.load('StackedMNIST/pretrained_classifier.pt'))
+        self.classifier.load_state_dict(torch.load('pretrained_classifier.pt'))
         self.n_stack = n_stack
         self.n_samples = 26 * 10 ** n_stack
         self.z_dim = z_dim
@@ -47,38 +47,38 @@ class ModeCollapseEval(object):
 
 
 def tf_inception_score(netG, z_dim=128, n_samples=5000):
-    netG.eval()
     from inception_score import get_inception_score
-    all_samples = []
-    for i in tqdm(range(n_samples // 100)):
-        samples_100 = torch.randn(100, z_dim).cuda()
-        all_samples.append(
-            netG(samples_100).detach().cpu().numpy()
-        )
-
-    all_samples = np.concatenate(all_samples, axis=0)
-    netG.train()
-    return get_inception_score(all_samples)
-
-
-def tf_fid(netG, save_dir='/Tmp/kumarrit/cifar_samples/', n_samples=5000):
     netG.eval()
-    all_samples = []
-    for i in tqdm(range(n_samples // 100)):
-        samples_100 = torch.randn(100, 128).cuda()
-        all_samples.append(
-            netG(samples_100).detach().cpu().numpy()
-        )
+    with torch.no_grad():
+        images = []
+        for i in tqdm(range(n_samples // 100)):
+            z = torch.randn(100, z_dim).cuda()
+            x = netG(z)
+            images.append(x)
 
-    all_samples = np.concatenate(all_samples, axis=0)
-    all_samples = (((all_samples * .5) + .5) * 255).astype('int32')
+        images = torch.cat(images, 0).cpu().numpy()
+    netG.train()
+    return get_inception_score(images)
+
+
+def tf_fid(netG, save_dir='/Tmp/kumarrit/cifar_samples/', z_dim=128, n_samples=5000):
+    netG.eval()
+    with torch.no_grad():
+        images = []
+        for i in tqdm(range(n_samples // 100)):
+            z = torch.randn(100, z_dim).cuda()
+            x = netG(z) * .5 + .5
+            images.append(x)
+
+        images = (torch.cat(images, 0) * 255).long().numpy()
+    netG.train()
 
     root = Path(save_dir)
     if root.exists():
         os.system('rm -rf %s' % save_dir)
         os.makedirs(str(root))
 
-    for i in tqdm(range(all_samples.shape[0])):
-        imsave(root / ('image_%d.png' % i), all_samples[i].transpose(1, 2, 0))
-    netG.train()
+    for i in tqdm(range(images.shape[0])):
+        imsave(root / ('image_%d.png' % i), images[i].transpose(1, 2, 0))
+
     return os.system('python TTUR/fid.py %s ./TTUR/fid_stats_cifar10_train.npz --gpu 0' % str(root))
