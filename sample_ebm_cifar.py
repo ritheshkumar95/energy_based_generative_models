@@ -5,8 +5,9 @@ from tqdm import tqdm
 
 import torch
 from torchvision.utils import save_image
+from PIL import Image
 
-from sampler import MALA_sampler
+from sampler import MALA_sampler, MALA_corrected_sampler
 from inception_score import get_inception_score
 from data.cifar import inf_train_gen
 from networks.cifar import Generator, EnergyModel
@@ -19,8 +20,9 @@ def parse_args():
     parser.add_argument('--z_dim', type=int, default=128)
     parser.add_argument('--dim', type=int, default=512)
 
-    parser.add_argument('--mcmc_iters', type=int, default=0)
+    parser.add_argument('--mcmc_iters', type=int, default=1)
     parser.add_argument('--alpha', type=float, default=.01)
+    parser.add_argument('--temp', type=float, default=1.)
 
     parser.add_argument('--batch_size', type=int, default=100)
     parser.add_argument('--n_samples', type=int, default=5000)
@@ -46,20 +48,29 @@ netE.load_state_dict(torch.load(
 ))
 
 
-for mcmc_iters in range(1, 11):
-    for alpha in [0.000025, 0.00005, 0.0001, 0.00025, 0.0005, 0.001, 0.0025, 0.005]:
-        args.mcmc_iters = mcmc_iters
-        args.alpha = alpha
-        images = []
-        for i in tqdm(range(args.n_samples // args.batch_size)):
-            z = MALA_sampler(netG, netE, args)
-            x = netG(z).detach().cpu().numpy()
-            images.append(x)
+# for mcmc_iters in range(1, 11):
+#     for alpha in [0.000025, 0.00005, 0.0001, 0.00025, 0.0005, 0.001, 0.0025, 0.005]:
+#         args.mcmc_iters = mcmc_iters
+#         args.alpha = alpha
 
-        images = np.concatenate(images, 0)
-        mean, std = get_inception_score(images)
-        print("-" * 100)
-        print("Inception Score: alpha = {} mcmc_iters = {} mean = {} std = {}".format(
-            alpha, mcmc_iters, mean, std
-        ))
-        print("-" * 100)
+images = []
+for i in tqdm(range(args.n_samples // args.batch_size)):
+    z, ratio = MALA_corrected_sampler(netG, netE, args)
+    x = netG(z).detach().cpu().numpy()
+    images.append(x)
+    save_image(torch.from_numpy(x), root / 'generated.png', normalize=True)
+    for j in range(x.shape[0]):
+        img = x[j].transpose(1, 2, 0) * .5 + .5
+        img = (img * 255).astype('uint8')
+        Image.fromarray(img).save(
+            '/Tmp/kumarrit/generated_images/image_%05d.png' % (i * args.batch_size + j)
+        )
+
+
+images = np.concatenate(images, 0)
+mean, std = get_inception_score(images)
+print("-" * 100)
+print("Inception Score: alpha = {} mcmc_iters = {} mean = {} std = {}".format(
+    args.alpha, args.mcmc_iters, mean, std
+))
+print("-" * 100)

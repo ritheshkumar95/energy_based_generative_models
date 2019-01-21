@@ -123,8 +123,8 @@ for iters in range(args.iters):
         ))
         print("-" * 100)
 
-        writer.add_scalar('inception_score/mean', mean)
-        writer.add_scalar('inception_score/std', std)
+        writer.add_scalar('inception_score/mean', mean, iters)
+        writer.add_scalar('inception_score/std', std, iters)
 
         torch.save(
             netG.state_dict(),

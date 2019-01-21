@@ -8,7 +8,6 @@ import torch
 from torchvision.utils import save_image, make_grid
 from tensorboardX import SummaryWriter
 
-from evals import tf_inception_score
 from utils import sample_images
 from data.celeba import inf_train_gen
 from networks.celeba import Generator, EnergyModel, StatisticsNetwork
@@ -43,7 +42,10 @@ root = Path(args.save_path)
 # Create Directories
 #################################################
 if root.exists():
-    os.system('rm -rf %s' % str(root))
+    load = True
+    # os.system('rm -rf %s' % str(root))
+else:
+    load = False
 
 os.makedirs(str(root))
 os.system('mkdir -p %s' % str(root / 'models'))
@@ -55,6 +57,12 @@ itr = inf_train_gen(args.batch_size)
 netG = Generator(args.z_dim, args.dim).cuda()
 netE = EnergyModel(args.dim).cuda()
 netH = StatisticsNetwork(args.z_dim, args.dim).cuda()
+
+if load:
+    print('Loading models')
+    netG.load_state_dict(torch.load(root / 'models/netG.pt'))
+    netH.load_state_dict(torch.load(root / 'models/netH.pt'))
+    netE.load_state_dict(torch.load(root / 'models/netE.pt'))
 
 params = {'lr': 1e-4, 'betas': (0.5, 0.9)}
 optimizerE = torch.optim.Adam(netE.parameters(), **params)
@@ -109,7 +117,8 @@ for iters in range(args.iters):
                   np.asarray(g_costs).mean(0),
                   (time.time() - start_time) / args.log_interval
               ))
-        sample_images(netG, args)
+        img = sample_images(netG, args)
+        writer.add_image('samples/generated', img, iters)
 
         e_costs = []
         g_costs = []

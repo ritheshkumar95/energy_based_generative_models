@@ -5,7 +5,8 @@ import time
 import numpy as np
 
 import torch
-from torchvision.utils import save_image
+from torchvision.utils import save_image, make_grid
+from tensorboardX import SummaryWriter
 
 from evals import tf_inception_score
 from utils import sample_images
@@ -42,6 +43,7 @@ if not root.exists():
     os.makedirs(str(root))
     os.system('mkdir -p %s' % str(root / 'models'))
     os.system('mkdir -p %s' % str(root / 'images'))
+writer = SummaryWriter(str(root))
 #################################################
 
 itr = inf_train_gen(args.batch_size)
@@ -62,8 +64,11 @@ if (root / 'models/netG.pt').exists():
 ########################################################################
 # Dump Original Data
 ########################################################################
-orig_data = itr.__next__()
-save_image(orig_data, root / 'images/orig.png', normalize=True)
+for i in range(8):
+    orig_data = itr.__next__()
+    # save_image(orig_data, root / 'images/orig.png', normalize=True)
+    img = make_grid(orig_data, normalize=True)
+    writer.add_image('samples/original', img, i)
 ########################################################################
 
 start_time = time.time()
@@ -78,6 +83,13 @@ for iters in range(args.iters):
             args, d_costs
         )
 
+    d_real, d_fake, wass_d, penalty = np.mean(d_costs[-args.critic_iters:], 0)
+
+    writer.add_scalar('discriminator/fake', d_fake, iters)
+    writer.add_scalar('discriminator/real', d_real, iters)
+    writer.add_scalar('gradient_penalty', penalty, iters)
+    writer.add_scalar('wasserstein_distance', wass_d, iters)
+
     if iters % args.log_interval == 0:
         print('Train Iter: {}/{} ({:.0f}%)\t'
               'D_costs: {} Time: {:5.3f}'.format(
@@ -86,18 +98,22 @@ for iters in range(args.iters):
                   np.asarray(d_costs).mean(0),
                   (time.time() - start_time) / args.log_interval
               ))
-        sample_images(netG, args)
+        img = sample_images(netG, args)
+        writer.add_image('samples/generated', img, iters)
 
         d_costs = []
         start_time = time.time()
 
     if iters % args.save_interval == 0:
-        mean, std = tf_inception_score(netG)
+        mean, std = tf_inception_score(netG, z_dim=args.z_dim)
         print("-" * 100)
         print("Inception Score: mean = {} std = {}".format(
             mean, std
         ))
         print("-" * 100)
+
+        writer.add_scalar('inception_score/mean', mean, iters)
+        writer.add_scalar('inception_score/std', std, iters)
 
         torch.save(
             netG.state_dict(),

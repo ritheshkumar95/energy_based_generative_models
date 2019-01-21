@@ -38,9 +38,12 @@ class ModeCollapseEval(object):
 
         n_modes = 10 ** self.n_stack
         true_data = np.ones(n_modes) / float(n_modes)
-        print("No. of modes captured: ", len(np.where(counts > 0)[0]))
+        num_modes_cap = len(np.where(counts > 0)[0])
         counts = counts.flatten() / counts.sum()
-        print('Reverse KL: ', KLD(counts, true_data))
+        kld = KLD(counts, true_data)
+        print("No. of modes captured: ", num_modes_cap)
+        print('Reverse KL: ', kld)
+        return num_modes_cap, kld
 
 
 def tf_inception_score(netG, z_dim=128, n_samples=5000):
