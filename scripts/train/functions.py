@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
-from ...networks.regularizers import score_penalty, gradient_penalty
-from ..sampler import MALA_sampler, MALA_corrected_sampler
+from networks.regularizers import score_penalty, gradient_penalty
+from sampler import MALA_sampler, MALA_corrected_sampler
 
 
 def train_generator(netG, netE, netH, optimizerG, optimizerH, args, g_costs):
@@ -54,12 +54,10 @@ def train_energy_model(x_real, netG, netE, optimizerE, args, e_costs):
     penalty = score_penalty(netE, x_real)
     (args.lamda * penalty).backward()
 
-    nll = D_real - D_fake
-
     optimizerE.step()
 
     e_costs.append(
-        [D_real.item(), D_fake.item(), nll.item(), penalty.item()]
+        [D_real.item(), D_fake.item(), penalty.item()]
     )
 
 

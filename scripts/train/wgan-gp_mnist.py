@@ -3,16 +3,18 @@ import argparse
 import os
 import time
 import numpy as np
-
 import torch
 from torchvision.utils import save_image, make_grid
 from tensorboardX import SummaryWriter
+import sys
+sys.path.append('./')
+sys.path.append('scripts/')
 
 from evals import ModeCollapseEval
-from utils import sample_images
+from utils import save_samples
 from data.mnist import inf_train_gen
 from networks.mnist import Generator, EnergyModel
-from train_functions import train_wgan_generator, train_wgan_discriminator
+from functions import train_wgan_generator, train_wgan_discriminator
 
 
 def parse_args():
@@ -95,7 +97,7 @@ for iters in range(args.iters):
                   np.asarray(d_costs).mean(0),
                   (time.time() - start_time) / args.log_interval
               ))
-        img = sample_images(netG, args)
+        img = save_samples(netG, args)
         writer.add_image('samples/generated', img, iters)
 
         d_costs = []

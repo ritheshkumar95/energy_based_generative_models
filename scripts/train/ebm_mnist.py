@@ -3,16 +3,18 @@ import argparse
 import os
 import time
 import numpy as np
-
 import torch
 from torchvision.utils import save_image, make_grid
 from tensorboardX import SummaryWriter
+import sys
+sys.path.append('./')
+sys.path.append('scripts/')
 
 from evals import ModeCollapseEval
-from utils import sample_images
+from utils import save_samples
 from data.mnist import inf_train_gen
 from networks.mnist import Generator, EnergyModel, StatisticsNetwork
-from train_functions import train_generator, train_energy_model
+from functions import train_generator, train_energy_model
 
 
 def parse_args():
@@ -94,11 +96,10 @@ for iters in range(args.iters):
         )
 
     _, loss_mi = np.mean(g_costs[-args.generator_iters:], 0)
-    d_real, d_fake, nll, penalty = np.mean(e_costs[-args.energy_model_iters:], 0)
+    d_real, d_fake, penalty = np.mean(e_costs[-args.energy_model_iters:], 0)
 
     writer.add_scalar('energy/fake', d_fake, iters)
     writer.add_scalar('energy/real', d_real, iters)
-    writer.add_scalar('loss/nll', nll, iters)
     writer.add_scalar('loss/penalty', penalty, iters)
     writer.add_scalar('loss/mi', loss_mi, iters)
 
@@ -111,7 +112,7 @@ for iters in range(args.iters):
                   np.asarray(g_costs).mean(0),
                   (time.time() - start_time) / args.log_interval
               ))
-        img = sample_images(netG, args)
+        img = save_samples(netG, args)
         writer.add_image('samples/generated', img, iters)
 
         e_costs = []

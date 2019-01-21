@@ -7,7 +7,11 @@ import torch
 from torchvision.utils import save_image
 from PIL import Image
 
-from ..sampler import MALA_corrected_sampler
+import sys
+sys.path.append('./')
+sys.path.append('scripts/')
+
+from sampler import MALA_corrected_sampler
 from inception_score import get_inception_score
 from networks.cifar import Generator, EnergyModel
 
@@ -32,6 +36,8 @@ def parse_args():
 
 args = parse_args()
 root = Path(args.load_path)
+if not Path(args.dump_path).exists():
+    Path(args.dump_path).mkdir()
 
 netG = Generator(args.z_dim, args.dim).cuda()
 netE = EnergyModel(args.dim).cuda()
@@ -49,7 +55,7 @@ netE.load_state_dict(torch.load(
 
 images = []
 for i in tqdm(range(args.n_samples // args.batch_size)):
-    z, ratio = MALA_corrected_sampler(netG, netE, args)
+    z = MALA_corrected_sampler(netG, netE, args)
     x = netG(z).detach()
     images.append(x)
 

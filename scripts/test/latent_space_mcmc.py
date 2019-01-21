@@ -5,9 +5,12 @@ from tqdm import tqdm
 from PIL import Image
 from imageio import mimsave
 import matplotlib.pyplot as plt
-
 import torch
 from torchvision.utils import save_image
+import sys
+
+sys.path.append('./')
+sys.path.append('scripts/')
 from sampler import MALA_corrected_sampler
 
 
@@ -31,9 +34,20 @@ def parse_args():
 args = parse_args()
 root = Path(args.load_path)
 
-mod = __import__('networks.%s' % args.dataset, fromlist=[''])
-netG = mod.Generator(z_dim=args.z_dim, dim=args.dim).cuda()
-netE = mod.EnergyModel(dim=args.dim).cuda()
+if args.dataset == 'toy':
+    from networks.toy import Generator, EnergyModel
+elif args.dataset == 'cifar':
+    from networks.cifar import Generator, EnergyModel
+elif args.dataset == 'mnist':
+    from networks.mnist import Generator, EnergyModel
+elif args.dataset == 'celeba':
+    from networks.celeba import Generator, EnergyModel
+else:
+    assert False, "Incorrect dataset specification. Choose one of toy | cifar | mnist | celeba"
+
+# mod = __import__('...networks.%s' % args.dataset, fromlist=[''])
+netG = Generator(z_dim=args.z_dim, dim=args.dim).cuda()
+netE = EnergyModel(dim=args.dim).cuda()
 
 netG.eval()
 netE.eval()
@@ -59,6 +73,9 @@ for i in tqdm(range(n_iters)):
         x = x.numpy()
         plt.clf()
         plt.scatter(x[:, 0], x[:, 1])
+        plt.title("Iteration %d" % i)
+        plt.xlim(-2, 2)
+        plt.ylim(-2, 2)
         plt.savefig(root / 'generated.png')
     else:
         save_image(

@@ -7,11 +7,14 @@ import numpy as np
 from tensorboardX import SummaryWriter
 
 import torch
+import sys
+sys.path.append('./')
+sys.path.append('scripts/')
 
 from utils import save_toy_samples, save_energies
-from ..data.toy import inf_train_gen
-from ..networks.toy import Generator, EnergyModel, StatisticsNetwork
-from train_functions import train_generator, train_energy_model
+from data.toy import inf_train_gen
+from networks.toy import Generator, EnergyModel, StatisticsNetwork
+from functions import train_generator, train_energy_model
 
 
 def parse_args():
@@ -19,7 +22,6 @@ def parse_args():
     parser.add_argument('--dataset', required=True)
     parser.add_argument('--save_path', required=True)
 
-    parser.add_argument('--input_dim', type=int, default=2)
     parser.add_argument('--z_dim', type=int, default=2)
     parser.add_argument('--dim', type=int, default=512)
 
@@ -54,9 +56,9 @@ writer = SummaryWriter(str(root))
 #################################################
 itr = inf_train_gen(args.dataset, args.batch_size)
 
-netG = Generator(args.input_dim, args.z_dim, args.dim).cuda()
-netE = EnergyModel(args.input_dim, args.dim).cuda()
-netH = StatisticsNetwork(args.input_dim, args.z_dim, args.dim).cuda()
+netG = Generator(args.z_dim, args.dim).cuda()
+netE = EnergyModel(args.dim).cuda()
+netH = StatisticsNetwork(args.z_dim, args.dim).cuda()
 
 params = {'lr': 1e-4, 'betas': (0.5, 0.9)}
 optimizerE = torch.optim.Adam(netE.parameters(), **params)
@@ -94,11 +96,10 @@ for iters in range(args.iters):
         )
 
     _, loss_mi = np.mean(g_costs[-args.generator_iters:], 0)
-    d_real, d_fake, nll, penalty = np.mean(e_costs[-args.energy_model_iters:], 0)
+    d_real, d_fake, penalty = np.mean(e_costs[-args.energy_model_iters:], 0)
 
     writer.add_scalar('loss_fake', d_fake, iters)
     writer.add_scalar('loss_real', d_real, iters)
-    writer.add_scalar('loss/nll', nll, iters)
     writer.add_scalar('loss_penalty', penalty, iters)
     writer.add_scalar('loss_mi', loss_mi, iters)
 
