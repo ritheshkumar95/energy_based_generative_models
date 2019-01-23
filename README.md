@@ -1,6 +1,4 @@
 # Maximum Entropy Generators for Energy-Based Models
-## Code accompanying the ICML submission
-
 
 All experiments have tensorboard visualizations for samples / density / train curves etc.
 
