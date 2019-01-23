@@ -53,7 +53,7 @@ def MALA_corrected_sampler(netG, netE, args, z=None, return_ratio=False):
 
         log_ratio_1 = -e_z_prime + e_z  # log [p(z_prime) / p(z)]
         log_ratio_2 = log_q_z_zprime - log_q_zprime_z  # log [q(z | z_prime) / q(z_prime | z)]
-        # print(log_ratio_1.mean().item(), log_ratio_2.mean().item())
+        print(log_ratio_1.mean().item(), log_ratio_2.mean().item())
 
         ratio = (log_ratio_1 + log_ratio_2).exp().clamp(max=1)
         # print(ratio.mean().item())

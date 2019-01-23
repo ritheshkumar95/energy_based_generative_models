@@ -11,7 +11,7 @@ import sys
 
 sys.path.append('./')
 sys.path.append('scripts/')
-from sampler import MALA_corrected_sampler
+from sampler import MALA_corrected_sampler, MALA_sampler
 
 
 def parse_args():
@@ -26,6 +26,7 @@ def parse_args():
     parser.add_argument('--alpha', type=float, default=.01)
     parser.add_argument('--temp', type=float, default=.1)
 
+    parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--batch_size', type=int, default=64)
     args = parser.parse_args()
     return args
@@ -61,13 +62,21 @@ netE.load_state_dict(torch.load(
 
 images = []
 ratios = []
-z = None
 n_iters = args.mcmc_iters
 args.mcmc_iters = 1  # We want to step through 1 at a time
+
+torch.manual_seed(args.seed)
+z = torch.randn(args.batch_size, args.z_dim).cuda()
+
+timeline = []
+interval = n_iters / args.batch_size
 
 for i in tqdm(range(n_iters)):
     z, ratio = MALA_corrected_sampler(netG, netE, args, z=z, return_ratio=True)
     x = netG(z).detach().cpu()
+
+    if i % interval == 0:
+        timeline.append(x)
 
     if args.dataset == 'toy':
         x = x.numpy()
@@ -90,3 +99,7 @@ for i in tqdm(range(n_iters)):
 
 print("Acceptance rate: ", torch.stack(ratios, 1).mean(1).mean(0).item())
 mimsave('mcmc.gif', images)
+
+hw = x.size(-1)
+img = torch.stack(timeline, 1).view(args.batch_size ** 2, 3, hw, hw)
+save_image(img, root / 'timeline.png', normalize=True, nrow=args.batch_size)
