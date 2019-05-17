@@ -27,9 +27,7 @@ def parse_args():
 
     parser.add_argument('--energy_model_iters', type=int, default=5)
     parser.add_argument('--generator_iters', type=int, default=1)
-    parser.add_argument('--mcmc_iters', type=int, default=0)
-    parser.add_argument('--lamda', type=float, default=.1)
-    parser.add_argument('--alpha', type=float, default=.01)
+    parser.add_argument('--lamda', type=float, default=0.)
 
     parser.add_argument('--batch_size', type=int, default=256)
     parser.add_argument('--iters', type=int, default=100000)

@@ -40,15 +40,14 @@ class StatisticsNetwork(nn.Module):
     def __init__(self, z_dim, dim):
         super().__init__()
         self.main = nn.Sequential(
-            nn.Linear(2 + z_dim, dim),
+            nn.Linear(2, dim),
             nn.LeakyReLU(.2, inplace=True),
             nn.Linear(dim, dim),
             nn.LeakyReLU(.2, inplace=True),
             nn.Linear(dim, dim),
             nn.LeakyReLU(.2, inplace=True),
-            nn.Linear(dim, 1)
+            nn.Linear(dim, z_dim)
         )
 
-    def forward(self, x, z):
-        x = torch.cat([x, z], -1)
-        return self.main(x).squeeze(-1)
+    def forward(self, x):
+        return self.main(x)

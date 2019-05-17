@@ -1,39 +1,33 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from networks.regularizers import score_penalty, gradient_penalty
-from sampler import MALA_sampler, MALA_corrected_sampler
 
 
 def train_generator(netG, netE, netH, optimizerG, optimizerH, args, g_costs):
-    netG.zero_grad()
-    netH.zero_grad()
 
-    z = MALA_corrected_sampler(netG, netE, args)
+    z = torch.randn(args.batch_size, args.z_dim).cuda()
     x_fake = netG(z)
+
+    netH.zero_grad()
+    dae_loss = F.mse_loss(netG(netH(x_fake.detach())), x_fake.detach())
+    dae_loss.backward()
+    optimizerH.step()
+
+    netG.zero_grad()
     D_fake = netE(x_fake)
     D_fake = D_fake.mean()
     D_fake.backward(retain_graph=True)
 
-    ################################
-    # DeepInfoMAX for MI estimation
-    ################################
-    label = torch.zeros(2 * args.batch_size).cuda()
-    label[:args.batch_size].data.fill_(1)
-
-    z_bar = z[torch.randperm(args.batch_size)]
-    concat_x = torch.cat([x_fake, x_fake], 0)
-    concat_z = torch.cat([z, z_bar], 0)
-    mi_estimate = nn.BCEWithLogitsLoss()(
-        netH(concat_x, concat_z).squeeze(),
-        label
-    )
-    mi_estimate.backward()
+    netG.zero_grad()
+    score = (netG(netH(x_fake.detach())) - x_fake.detach()) / (.001 ** 2)
+    # score = (netG(netH(x_fake)) - x_fake) / .001
+    x_fake.backward(score)
 
     optimizerG.step()
-    optimizerH.step()
 
     g_costs.append(
-        [D_fake.item(), mi_estimate.item()]
+        [D_fake.item(), dae_loss.item()]
     )
 
 
@@ -45,7 +39,7 @@ def train_energy_model(x_real, netG, netE, optimizerE, args, e_costs):
     D_real.backward()
 
     # train with fake
-    z = MALA_corrected_sampler(netG, netE, args)
+    z = torch.randn(args.batch_size, args.z_dim).cuda()
     x_fake = netG(z).detach()
     D_fake = netE(x_fake)
     D_fake = D_fake.mean()
