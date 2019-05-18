@@ -1,11 +1,12 @@
-import matplotlib.pyplot as plt
 from pathlib import Path
 import argparse
 import os
 import time
 import numpy as np
 from tensorboardX import SummaryWriter
-from sklearn.metrics import precision_recall_fscore_support
+from sklearn.metrics import precision_recall_curve, auc
+import matplotlib.pyplot as plt
+import yaml
 
 import torch
 import sys
@@ -13,21 +14,27 @@ import sys
 sys.path.append("./")
 sys.path.append("scripts/")
 
-from data.kdd import get_train, get_test
-from networks.kdd import Generator, EnergyModel, StatisticsNetwork
+from data.mnist_anomaly import get_train, get_test
+from networks.mnist import Generator, EnergyModel, StatisticsNetwork
 from functions import train_generator, train_energy_model
+from utils import save_samples
 
 
 def compute_scores(testy, scores):
-    per = np.percentile(scores, 80)
-    labs = np.zeros_like(scores).astype("int")
-    labs[scores < per] = 0
-    labs[scores >= per] = 1
-    precision, recall, f1, _ = precision_recall_fscore_support(
-        testy, labs, average="binary"
-    )
-    print("Prec = %.4f | Rec = %.4f | F1 = %.4f " % (precision, recall, f1))
-    return precision, recall, f1
+    precision, recall, thresholds = precision_recall_curve(testy, scores)
+    prc_auc = auc(recall, precision)
+
+    fig = plt.figure()
+    plt.step(recall, precision, color="b", alpha=0.2, where="post")
+    plt.fill_between(recall, precision, step="post", alpha=0.2, color="b")
+    plt.xlabel("Recall")
+    plt.ylabel("Precision")
+    plt.ylim([0.0, 1.05])
+    plt.xlim([0.0, 1.0])
+    plt.title("Precision-Recall curve: AUC=%0.4f" % (prc_auc))
+
+    print("AUC=%0.4f" % (prc_auc))
+    return prc_auc, fig
 
 
 def do_eval(netE, writer, epoch):
@@ -36,40 +43,42 @@ def do_eval(netE, writer, epoch):
     data.requires_grad_(True)
 
     energies = netE(data)
-    penalty = torch.autograd.grad(
-        outputs=energies,
-        inputs=data,
-        grad_outputs=torch.ones_like(energies),
-        only_inputs=True,
-    )[0].norm(2, dim=1)
+    penalty = (
+        torch.autograd.grad(
+            outputs=energies,
+            inputs=data,
+            grad_outputs=torch.ones_like(energies),
+            only_inputs=True,
+        )[0]
+        .view(energies.size(0), -1)
+        .norm(2, dim=1)
+    )
 
     print("Testing energy function...")
-    p, r, f1 = compute_scores(testy, energies.detach().cpu().numpy())
-    writer.add_scalar("metrics/energy_function/precision", p, epoch)
-    writer.add_scalar("metrics/energy_function/recall", r, epoch)
-    writer.add_scalar("metrics/energy_function/f1", f1, epoch)
+    prc_auc, fig = compute_scores(testy, energies.detach().cpu().numpy())
+    writer.add_scalar("metrics/energy_function/prc_auc", prc_auc, epoch)
+    writer.add_figure("energy_function/precision_recall_curve", fig, epoch)
     print("Testing energy norm...")
-    p, r, f1 = compute_scores(testy, penalty.detach().cpu().numpy())
-    writer.add_scalar("metrics/energy_norm/precision", p, epoch)
-    writer.add_scalar("metrics/energy_norm/recall", r, epoch)
-    writer.add_scalar("metrics/energy_norm/f1", f1, epoch)
+    prc_auc, fig = compute_scores(testy, penalty.detach().cpu().numpy())
+    writer.add_scalar("metrics/energy_norm/prc_auc", prc_auc, epoch)
+    writer.add_figure("energy_norm/precision_recall_curve", fig, epoch)
 
 
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--save_path", required=True)
+    parser.add_argument("--label", type=int, default=1)
 
-    parser.add_argument("--z_dim", type=int, default=32)
+    parser.add_argument("--z_dim", type=int, default=128)
+    parser.add_argument("--dim", type=int, default=512)
     parser.add_argument("--energy_model_iters", type=int, default=1)
     parser.add_argument("--generator_iters", type=int, default=1)
     parser.add_argument("--mcmc_iters", type=int, default=0)
     parser.add_argument("--lamda", type=float, default=100)
 
-    parser.add_argument("--batch_size", type=int, default=256)
+    parser.add_argument("--batch_size", type=int, default=64)
     parser.add_argument("--epochs", type=int, default=55)
     parser.add_argument("--log_interval", type=int, default=100)
-    parser.add_argument("--save_interval", type=int, default=1000)
-
     args = parser.parse_args()
     return args
 
@@ -84,14 +93,16 @@ if root.exists():
 
 root.mkdir()
 (root / "models").mkdir()
+with open(root / "args.yml", "w") as f:
+    yaml.dump(args, f)
 writer = SummaryWriter(str(root))
 #################################################
-train_set = get_train()[0]
-test_set = get_test()
+train_set = get_train(args.label, centered=True)[0]
+test_set = get_test(args.label, centered=True)
 
-netG = Generator(args.z_dim).cuda()
-netE = EnergyModel().cuda()
-netH = StatisticsNetwork(args.z_dim).cuda()
+netG = Generator(z_dim=args.z_dim, dim=args.dim).cuda()
+netE = EnergyModel(dim=args.dim).cuda()
+netH = StatisticsNetwork(z_dim=args.z_dim, dim=args.dim).cuda()
 
 params = {"lr": 1e-4, "betas": (0.5, 0.9)}
 optimizerE = torch.optim.Adam(netE.parameters(), **params)
@@ -99,6 +110,7 @@ optimizerG = torch.optim.Adam(netG.parameters(), **params)
 optimizerH = torch.optim.Adam(netH.parameters(), **params)
 
 ##################################################
+torch.backends.cudnn.benchmark = True
 
 start_time = time.time()
 e_costs = []
@@ -138,7 +150,11 @@ for epoch in range(args.epochs):
             g_costs = []
             start_time = time.time()
 
-        if steps % args.save_interval == 0:
-            torch.save(netG.state_dict(), root / "models/netG.pt")
-            torch.save(netE.state_dict(), root / "models/netE.pt")
-            torch.save(netH.state_dict(), root / "models/netD.pt")
+    print("=" * 50)
+    print("Epoch completed!")
+    print("=" * 50)
+    img = save_samples(netG, args)
+    writer.add_image("samples/generated", img, epoch)
+    torch.save(netG.state_dict(), root / "models/netG.pt")
+    torch.save(netE.state_dict(), root / "models/netE.pt")
+    torch.save(netH.state_dict(), root / "models/netD.pt")
