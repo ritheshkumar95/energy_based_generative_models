@@ -67,11 +67,11 @@ def do_eval(netE, writer, epoch):
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--save_path", required=True)
-    parser.add_argument("--label", type=int, default=1)
+    parser.add_argument("--label", type=int, required=True)
 
     parser.add_argument("--z_dim", type=int, default=128)
     parser.add_argument("--dim", type=int, default=512)
-    parser.add_argument("--energy_model_iters", type=int, default=1)
+    parser.add_argument("--energy_model_iters", type=int, default=5)
     parser.add_argument("--generator_iters", type=int, default=1)
     parser.add_argument("--mcmc_iters", type=int, default=0)
     parser.add_argument("--lamda", type=float, default=100)

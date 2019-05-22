@@ -66,7 +66,7 @@ def _get_adapted_dataset(split, label=None, centered=False, flatten=False):
     Returns :
             (tuple): <training, testing> images and labels
     """
-    data = np.load("/network/tmp1/kumarrit/data/mnist.npz")
+    data = np.load("/scratch/kumarrit/data/mnist.npz")
     dataset = {}
 
     full_x_data = np.concatenate(

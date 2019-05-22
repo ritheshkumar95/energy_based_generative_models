@@ -4,9 +4,9 @@ import torch.nn as nn
 
 def weights_init(m):
     classname = m.__class__.__name__
-    if classname.find('Conv') != -1:
+    if classname.find("Conv") != -1:
         m.weight.data.normal_(0.0, 0.02)
-    elif classname.find('BatchNorm') != -1:
+    elif classname.find("BatchNorm") != -1:
         m.weight.data.normal_(1.0, 0.02)
         m.bias.data.fill_(0)
 
@@ -28,7 +28,7 @@ class Generator(nn.Module):
             nn.BatchNorm2d(dim // 8),
             nn.ReLU(True),
             nn.ConvTranspose2d(dim // 8, input_dim, 5, 2, 2, output_padding=1),
-            nn.Tanh()
+            nn.Tanh(),
         )
         self.apply(weights_init)
 
@@ -52,9 +52,13 @@ class EnergyModel(nn.Module):
             nn.LeakyReLU(0.2, inplace=True),
         )
 
-    def forward(self, x):
+    def forward(self, x, return_fmap=False):
         out = self.main(x).view(x.size(0), -1)
-        return self.expand(out).squeeze(-1)
+        energies = self.expand(out).squeeze(-1)
+        if return_fmap:
+            return out, energies
+        else:
+            return energies
 
 
 class StatisticsNetwork(nn.Module):
@@ -74,7 +78,7 @@ class StatisticsNetwork(nn.Module):
         self.classify = nn.Sequential(
             nn.Linear(z_dim * 2, dim),
             nn.LeakyReLU(0.2, inplace=True),
-            nn.Linear(dim, 1)
+            nn.Linear(dim, 1),
         )
 
     def forward(self, x, z):
