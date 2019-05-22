@@ -51,6 +51,7 @@ class EnergyModel(nn.Module):
             nn.Conv2d(dim // 2, dim, 5, 2, 2),
             nn.LeakyReLU(0.2, inplace=True),
         )
+        self.apply(weights_init)
 
     def forward(self, x, return_fmap=False):
         out = self.main(x).view(x.size(0), -1)
@@ -80,6 +81,7 @@ class StatisticsNetwork(nn.Module):
             nn.LeakyReLU(0.2, inplace=True),
             nn.Linear(dim, 1),
         )
+        self.apply(weights_init)
 
     def forward(self, x, z):
         out = self.main(x).view(x.size(0), -1)

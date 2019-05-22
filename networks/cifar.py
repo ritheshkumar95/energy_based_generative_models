@@ -2,6 +2,15 @@ import torch
 import torch.nn as nn
 
 
+def weights_init(m):
+    classname = m.__class__.__name__
+    if classname.find("Conv") != -1:
+        m.weight.data.normal_(0.0, 0.02)
+    elif classname.find("BatchNorm") != -1:
+        m.weight.data.normal_(1.0, 0.02)
+        m.bias.data.fill_(0)
+
+
 class Generator(nn.Module):
     def __init__(self, z_dim=128, dim=512):
         super().__init__()
@@ -18,8 +27,9 @@ class Generator(nn.Module):
             nn.BatchNorm2d(dim // 8),
             nn.ReLU(True),
             nn.ConvTranspose2d(dim // 8, 3, 3, 1, 1),
-            nn.Tanh()
+            nn.Tanh(),
         )
+        self.apply(weights_init)
 
     def forward(self, z):
         out = self.expand(z).view(z.size(0), -1, 4, 4)
@@ -43,9 +53,10 @@ class EnergyModel(nn.Module):
             nn.Conv2d(dim // 2, dim // 2, 4, 2, 1),
             nn.LeakyReLU(0.1, inplace=True),
             nn.Conv2d(dim // 2, dim, 3, 1, 1),
-            nn.LeakyReLU(0.1, inplace=True)
+            nn.LeakyReLU(0.1, inplace=True),
         )
         self.expand = nn.Linear(4 * 4 * dim, 1)
+        self.apply(weights_init)
 
     def forward(self, x):
         out = self.main(x).view(x.size(0), -1)
@@ -69,7 +80,7 @@ class StatisticsNetwork(nn.Module):
             nn.Conv2d(dim // 2, dim // 2, 4, 2, 1),
             nn.LeakyReLU(0.1, inplace=True),
             nn.Conv2d(dim // 2, dim, 3, 1, 1),
-            nn.LeakyReLU(0.1, inplace=True)
+            nn.LeakyReLU(0.1, inplace=True),
         )
         self.expand = nn.Linear(4 * 4 * dim, z_dim)
         self.classify = nn.Sequential(
@@ -77,6 +88,7 @@ class StatisticsNetwork(nn.Module):
             nn.LeakyReLU(0.1, inplace=True),
             nn.Linear(dim, 1),
         )
+        self.apply(weights_init)
 
     def forward(self, x, z):
         out = self.main(x).view(x.size(0), -1)

@@ -7,8 +7,9 @@ import numpy as np
 import torch
 from torchvision.utils import save_image, make_grid
 from tensorboardX import SummaryWriter
-sys.path.append('./')
-sys.path.append('scripts/')
+
+sys.path.append("./")
+sys.path.append("scripts/")
 
 from evals import tf_inception_score
 from utils import save_samples
@@ -19,21 +20,19 @@ from functions import train_generator, train_energy_model
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--save_path', required=True)
+    parser.add_argument("--save_path", required=True)
 
-    parser.add_argument('--z_dim', type=int, default=128)
-    parser.add_argument('--dim', type=int, default=512)
+    parser.add_argument("--z_dim", type=int, default=128)
+    parser.add_argument("--dim", type=int, default=512)
 
-    parser.add_argument('--energy_model_iters', type=int, default=5)
-    parser.add_argument('--generator_iters', type=int, default=1)
-    parser.add_argument('--mcmc_iters', type=int, default=0)
-    parser.add_argument('--lamda', type=float, default=10)
-    parser.add_argument('--alpha', type=float, default=.01)
+    parser.add_argument("--energy_model_iters", type=int, default=5)
+    parser.add_argument("--generator_iters", type=int, default=1)
+    parser.add_argument("--lamda", type=float, default=10)
 
-    parser.add_argument('--batch_size', type=int, default=64)
-    parser.add_argument('--iters', type=int, default=100000)
-    parser.add_argument('--log_interval', type=int, default=100)
-    parser.add_argument('--save_interval', type=int, default=1000)
+    parser.add_argument("--batch_size", type=int, default=64)
+    parser.add_argument("--iters", type=int, default=100000)
+    parser.add_argument("--log_interval", type=int, default=100)
+    parser.add_argument("--save_interval", type=int, default=1000)
 
     args = parser.parse_args()
     return args
@@ -45,11 +44,11 @@ root = Path(args.save_path)
 # Create Directories
 #################################################
 if root.exists():
-    os.system('rm -rf %s' % str(root))
+    os.system("rm -rf %s" % str(root))
 
 os.makedirs(str(root))
-os.system('mkdir -p %s' % str(root / 'models'))
-os.system('mkdir -p %s' % str(root / 'images'))
+os.system("mkdir -p %s" % str(root / "models"))
+os.system("mkdir -p %s" % str(root / "images"))
 writer = SummaryWriter(str(root))
 #################################################
 
@@ -58,7 +57,7 @@ netG = Generator(args.z_dim, args.dim).cuda()
 netE = EnergyModel(args.dim).cuda()
 netH = StatisticsNetwork(args.z_dim, args.dim).cuda()
 
-params = {'lr': 1e-4, 'betas': (0.5, 0.9)}
+params = {"lr": 1e-4, "betas": (0.5, 0.9)}
 optimizerE = torch.optim.Adam(netE.parameters(), **params)
 optimizerG = torch.optim.Adam(netG.parameters(), **params)
 optimizerH = torch.optim.Adam(netH.parameters(), **params)
@@ -70,7 +69,7 @@ for i in range(8):
     orig_data = itr.__next__()
     # save_image(orig_data, root / 'images/orig.png', normalize=True)
     img = make_grid(orig_data, normalize=True)
-    writer.add_image('samples/original', img, i)
+    writer.add_image("samples/original", img, i)
 ########################################################################
 
 start_time = time.time()
@@ -79,39 +78,34 @@ g_costs = []
 for iters in range(args.iters):
 
     for i in range(args.generator_iters):
-        train_generator(
-            netG, netE, netH,
-            optimizerG, optimizerH,
-            args, g_costs
-        )
+        train_generator(netG, netE, netH, optimizerG, optimizerH, args, g_costs)
 
     for i in range(args.energy_model_iters):
         x_real = itr.__next__().cuda()
-        train_energy_model(
-            x_real,
-            netG, netE, optimizerE,
-            args, e_costs
-        )
+        train_energy_model(x_real, netG, netE, optimizerE, args, e_costs)
 
-    _, loss_mi = np.mean(g_costs[-args.generator_iters:], 0)
-    d_real, d_fake, penalty = np.mean(e_costs[-args.energy_model_iters:], 0)
+    _, loss_mi = np.mean(g_costs[-args.generator_iters :], 0)
+    d_real, d_fake, penalty = np.mean(e_costs[-args.energy_model_iters :], 0)
 
-    writer.add_scalar('energy/fake', d_fake, iters)
-    writer.add_scalar('energy/real', d_real, iters)
-    writer.add_scalar('loss/penalty', penalty, iters)
-    writer.add_scalar('loss/mi', loss_mi, iters)
+    writer.add_scalar("energy/fake", d_fake, iters)
+    writer.add_scalar("energy/real", d_real, iters)
+    writer.add_scalar("loss/penalty", penalty, iters)
+    writer.add_scalar("loss/mi", loss_mi, iters)
 
     if iters % args.log_interval == 0:
-        print('Train Iter: {}/{} ({:.0f}%)\t'
-              'D_costs: {} G_costs: {} Time: {:5.3f}'.format(
-                  iters, args.iters,
-                  (args.log_interval * iters) / args.iters,
-                  np.asarray(e_costs).mean(0),
-                  np.asarray(g_costs).mean(0),
-                  (time.time() - start_time) / args.log_interval
-              ))
+        print(
+            "Train Iter: {}/{} ({:.0f}%)\t"
+            "D_costs: {} G_costs: {} Time: {:5.3f}".format(
+                iters,
+                args.iters,
+                (args.log_interval * iters) / args.iters,
+                np.asarray(e_costs).mean(0),
+                np.asarray(g_costs).mean(0),
+                (time.time() - start_time) / args.log_interval,
+            )
+        )
         img = save_samples(netG, args)
-        writer.add_image('samples/generated', img, iters)
+        writer.add_image("samples/generated", img, iters)
 
         e_costs = []
         g_costs = []
@@ -120,23 +114,12 @@ for iters in range(args.iters):
     if iters % args.save_interval == 0:
         mean, std = tf_inception_score(netG, z_dim=args.z_dim)
         print("-" * 100)
-        print("Inception Score: mean = {} std = {}".format(
-            mean, std
-        ))
+        print("Inception Score: mean = {} std = {}".format(mean, std))
         print("-" * 100)
 
-        writer.add_scalar('inception_score/mean', mean, iters)
-        writer.add_scalar('inception_score/std', std, iters)
+        writer.add_scalar("inception_score/mean", mean, iters)
+        writer.add_scalar("inception_score/std", std, iters)
 
-        torch.save(
-            netG.state_dict(),
-            root / 'models/netG.pt'
-        )
-        torch.save(
-            netE.state_dict(),
-            root / 'models/netE.pt'
-        )
-        torch.save(
-            netH.state_dict(),
-            root / 'models/netH.pt'
-        )
+        torch.save(netG.state_dict(), root / "models/netG.pt")
+        torch.save(netE.state_dict(), root / "models/netE.pt")
+        torch.save(netH.state_dict(), root / "models/netH.pt")
