@@ -33,3 +33,5 @@ NOTE: This requires cloning the TTUR repo in the current working directory (http
 ```
 python scripts/train/ebm_celeba.py --save_path logs/celeba
 ```
+
+NOTE: Results are subject to PyTorch version. I have already noticed variance in quantitative numbers with PyTorch version upgrades.

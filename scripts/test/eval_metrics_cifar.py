@@ -25,9 +25,9 @@ def parse_args():
     parser.add_argument("--z_dim", type=int, default=128)
     parser.add_argument("--dim", type=int, default=512)
 
-    parser.add_argument("--mcmc_iters", type=int, default=0)
+    parser.add_argument("--mcmc_iters", type=int, default=5)
     parser.add_argument("--alpha", type=float, default=0.01)
-    parser.add_argument("--temp", type=float, default=0.1)
+    parser.add_argument("--temp", type=float, default=0.2)
 
     parser.add_argument("--batch_size", type=int, default=100)
     parser.add_argument("--n_samples", type=int, default=50000)
